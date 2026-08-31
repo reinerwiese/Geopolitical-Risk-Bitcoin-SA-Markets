@@ -1,0 +1,18 @@
+# R files
+.Rhistory
+.RData
+.Rproj.user/
+
+# RStudio
+*.Rproj
+
+# Temporary files
+*.tmp
+*.temp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Local data
+Thesis_Data.xlsx

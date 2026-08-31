@@ -66,9 +66,10 @@ The analysis was conducted in **R** using packages including:
 - `strucchange`
 - `zoo`
 
-## Author
+## Authors
 
-**Reiner Wiese**
+- Reiner Wiese
+- Christopher Cresswell
 
 BCom Honours in Financial Risk Management  
 Stellenbosch University

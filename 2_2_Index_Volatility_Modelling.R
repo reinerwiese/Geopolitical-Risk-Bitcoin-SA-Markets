@@ -8,8 +8,9 @@ library(FinTS)
 data <- read_excel(
   "Thesis_Data.xlsx",
   sheet = "Data",
-  na = "NA"
+  na="NA"
 )
+
 
 data <- na.omit(data)
 
@@ -85,7 +86,7 @@ fit.egarch <- ugarchfit(
 )
 
 
-# 6. Compare Volatility Models
+# 6. Compare Variance Models
 
 comparison <- data.frame(
   

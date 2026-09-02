@@ -31,7 +31,7 @@ pacf(btc^2,
      main = "PACF of Squared Bitcoin Returns")
 
 
-# 4. Specify Candidate Models
+# 4. Specify Candidate Volatility Models
 spec.garch <- ugarchspec(
   
   variance.model = list(
@@ -144,7 +144,7 @@ comparison <- data.frame(
 comparison
 
 
-# 7. Model Summary
+# 7. Selected Model Summary
 
 show(fit.egarch)
 
@@ -221,6 +221,7 @@ ArchTest(
   std.residuals,
   lags = 12
 )
+
 
 
 

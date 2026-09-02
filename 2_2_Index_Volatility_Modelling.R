@@ -1,3 +1,5 @@
+# 2.2 J303 Volatility
+
 # 1. Load Packages
 library(readxl)
 library(rugarch)
@@ -8,7 +10,7 @@ library(FinTS)
 data <- read_excel(
   "Thesis_Data.xlsx",
   sheet = "Data",
-  na="NA"
+  na = "NA"
 )
 
 data <- na.omit(data)
@@ -39,20 +41,20 @@ pacf(
 
 
 # 4. Specify Candidate Models
+
 spec.garch <- ugarchspec(
   
   variance.model = list(
     model = "sGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,0),
+    armaOrder = c(0, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
@@ -60,37 +62,20 @@ spec.egarch <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,0),
+    armaOrder = c(0, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
-)
-
-
-spec.gjr <- ugarchspec(
-  
-  variance.model = list(
-    model = "gjrGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
 )
 
 
 # 5. Estimate Models
+
 fit.garch <- ugarchfit(
   spec = spec.garch,
   data = J303
@@ -101,54 +86,45 @@ fit.egarch <- ugarchfit(
   data = J303
 )
 
-fit.gjr <- ugarchfit(
-  spec = spec.gjr,
-  data = J303
-)
 
+# 6. Compare Volatility Models
 
-# 6. Compare Models
 comparison <- data.frame(
   
   Model = c(
     "GARCH(1,1)",
-    "EGARCH(1,1)",
-    "GJR-GARCH(1,1)"
+    "EGARCH(1,1)"
   ),
   
   LogLikelihood = c(
     likelihood(fit.garch),
-    likelihood(fit.egarch),
-    likelihood(fit.gjr)
+    likelihood(fit.egarch)
   ),
   
   AIC = c(
     infocriteria(fit.garch)[1],
-    infocriteria(fit.egarch)[1],
-    infocriteria(fit.gjr)[1]
+    infocriteria(fit.egarch)[1]
   ),
   
   BIC = c(
     infocriteria(fit.garch)[2],
-    infocriteria(fit.egarch)[2],
-    infocriteria(fit.gjr)[2]
+    infocriteria(fit.egarch)[2]
   ),
   
   Shibata = c(
     infocriteria(fit.garch)[3],
-    infocriteria(fit.egarch)[3],
-    infocriteria(fit.gjr)[3]
+    infocriteria(fit.egarch)[3]
   ),
   
   HannanQuinn = c(
     infocriteria(fit.garch)[4],
-    infocriteria(fit.egarch)[4],
-    infocriteria(fit.gjr)[4]
+    infocriteria(fit.egarch)[4]
   )
   
 )
 
 comparison
+
 
 # 7. Compare Mean Specifications for EGARCH
 
@@ -156,48 +132,47 @@ spec.egarch10 <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(1,0),
+    armaOrder = c(1, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
+
 
 spec.egarch01 <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,1),
+    armaOrder = c(0, 1),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
+
 
 spec.egarch11 <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(1,1),
+    armaOrder = c(1, 1),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
@@ -253,10 +228,12 @@ arma.comparison
 
 
 # 8. Model Summary
+
 show(fit.egarch)
 
 
 # 9. Extract Results
+
 volatility <- sigma(fit.egarch)
 
 std.residuals <- residuals(
@@ -268,6 +245,7 @@ data$J303_Volatility <- as.numeric(volatility)
 
 
 # 10. Conditional Volatility
+
 plot(
   data$Date,
   volatility,
@@ -279,6 +257,7 @@ plot(
 
 
 # 11. Standardized Residuals
+
 plot(
   data$Date,
   std.residuals,
@@ -290,18 +269,21 @@ plot(
 
 
 # 12. Residual Distribution
+
 hist(
   std.residuals,
   breaks = 40,
   probability = TRUE,
   main = "Distribution of Standardized Residuals",
-  xlab = "Standardized Residuals"
+  xlab = "Standardized Residuals",
+  ylim = c(0, 0.7)
 )
 
 lines(
   density(std.residuals),
   lwd = 2
 )
+
 
 qqnorm(
   std.residuals,
@@ -315,6 +297,7 @@ qqline(
 
 
 # 13. Residual Diagnostics
+
 # Test for remaining serial correlation
 Box.test(
   std.residuals,
@@ -334,4 +317,3 @@ ArchTest(
   std.residuals,
   lags = 12
 )
-

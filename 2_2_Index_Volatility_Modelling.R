@@ -1,5 +1,3 @@
-# 2.2 J303 Volatility
-
 # 1. Load Packages
 library(readxl)
 library(rugarch)

@@ -2,8 +2,6 @@
 library(readxl)
 library(rugarch)
 library(FinTS)
-library(tseries)
-library(ggplot2)
 
 
 # 2. Import Data

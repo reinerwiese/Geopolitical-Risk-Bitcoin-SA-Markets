@@ -2,8 +2,8 @@
 library(readxl)
 library(rugarch)
 library(FinTS)
-library(tseries)
-library(ggplot2)
+library(tseries)  #these 2 arent needed for this code (are we keeping them for consistency?)
+library(ggplot2)  #and this one (if not feel free to remove these 2 lines otherwise remove the comments)
 
 
 # 2. Import Data
@@ -185,11 +185,14 @@ plot(data$Date,
 
 
 # 11. Residual Distribution
-hist(std.residuals,
-     breaks = 40,
-     probability = TRUE,
-     main = "Distribution of Standardized Residuals",
-     xlab = "Standardized Residuals")
+hist(
+  std.residuals,
+  breaks = 40,
+  probability = TRUE,
+  main = "Distribution of Standardized Residuals",
+  xlab = "Standardized Residuals",
+  ylim = c(0, 0.7)
+)
 
 lines(
   density(std.residuals),

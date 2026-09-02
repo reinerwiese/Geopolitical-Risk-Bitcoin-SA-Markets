@@ -16,7 +16,8 @@ library(car)
 #2 Import and prepare data
 data <- read_excel(
   "Thesis_Data.xlsx",
-  sheet = "Data"
+  sheet = "Data",
+  na="NA"
 )
 
 data <- na.omit(data)

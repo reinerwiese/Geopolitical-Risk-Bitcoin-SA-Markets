@@ -10,7 +10,8 @@ library(FinTS)
 # 2. Import Data
 data <- read_excel(
   "Thesis_Data.xlsx",
-  sheet = "Data"
+  sheet = "Data",
+  na = "NA"
 )
 
 

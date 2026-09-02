@@ -243,10 +243,9 @@ summary(returns.model2)      # Not significant
 summary(returns.model3)      # Not significant
 
 summary(volatility.model1)   # Significant negative relationship
-summary(volatility.model2)   # Both coefficients significant
-summary(volatility.model3)   # Lag 2 significant at the 5% level
+summary(volatility.model2)   # Lagged GPR is significant at the 5% level; contemporaneous GPR is marginally significant at 10%.
+summary(volatility.model3)   # Lag 2 is significant at the 5% level.
 
-# The negative correlation is likely due to the linearity of the test.
 
 
 # 11. Model Comparison Tables
@@ -468,7 +467,7 @@ nw.model2 <- coeftest(
   
 )
 
-nw.model2   # HAC-robust inference; GPR effects not significant at the 5% level.
+nw.model2   # HAC-robust inference; lagged GPR is significant at the 5% level, while contemporaneous GPR is not..
 
 nw.model3 <- coeftest(
   
@@ -484,7 +483,7 @@ nw.model3 <- coeftest(
   
 )
 
-nw.model3   # HAC-robust inference; lagged GPR effects marginally significant (10%).
+nw.model3   # HAC-robust inference; lag 1 is significant at 10% and lag 2 is significant at 5%.
 
 
 # 18. Model Comparison
@@ -555,3 +554,7 @@ model.comparison <- data.frame(
 model.comparison[-1] <- round(model.comparison[-1], 4)
 
 model.comparison
+
+  
+
+

@@ -116,8 +116,11 @@ aggregate(
 ###############################################################
 
 #6 Define geopolitical risk regimes
+# The threshold is based on the midpoint between the two k-means cluster centres.
+# The midpoint is approximately 153, providing a data-driven separation
+# between lower and elevated geopolitical risk observations.
 data$GPR_Regime <- ifelse(
-  data$GPRD < 170,
+  data$GPRD < 153,
   "Lower GPR",
   "Elevated GPR"
 )

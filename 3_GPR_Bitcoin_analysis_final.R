@@ -1,4 +1,4 @@
-# 1. Load Packages
+# 1. Load required packages
 library(readxl)
 library(rugarch)
 library(dplyr)
@@ -9,35 +9,27 @@ library(sandwich)
 library(tseries)
 
 
-###############################################################
-# Section A: Bitcoin and Geopolitical Risk Analysis
-###############################################################
-
-# 2. Import Data
+# 2. Import data
 data <- read_excel(
   "Thesis_Data.xlsx",
   sheet = "Data",
-  na="NA"
+  na = "NA"
 )
 
 data <- na.omit(data)
 
 
-# 3. Estimate EGARCH Model
+# 3. Estimate Bitcoin EGARCH model
 spec.egarch <- ugarchspec(
   
   variance.model = list(
-    
     model = "eGARCH",
     garchOrder = c(1,1)
-    
   ),
   
   mean.model = list(
-    
     armaOrder = c(0,0),
     include.mean = TRUE
-    
   ),
   
   distribution.model = "std"
@@ -47,13 +39,12 @@ spec.egarch <- ugarchspec(
 fit.egarch <- ugarchfit(
   
   spec = spec.egarch,
-  
   data = data$BTC_log_returns
   
 )
 
 
-# 4. Extract Conditional Volatility
+# 4. Extract Bitcoin Conditional Volatility
 data$BTC_Volatility <- as.numeric(
   sigma(fit.egarch)
 )
@@ -73,15 +64,24 @@ data <- data %>%
 data <- na.omit(data)
 
 
-# 6. Exploratory Plots
+###############################################################
+# Section A: Exploratory Analysis
+###############################################################
 
-# Bitcoin Returns vs GPR
+# 6. Exploratory plots
+
+# Bitcoin Returns vs Geopolitical Risk
 ggplot(
   data,
-  aes(GPRD, BTC_log_returns)
+  aes(
+    x = GPRD,
+    y = BTC_log_returns
+  )
 ) +
   
-  geom_point() +
+  geom_point(
+    alpha = 0.6
+  ) +
   
   geom_smooth(
     method = "lm",
@@ -97,105 +97,87 @@ ggplot(
   )
 
 
-# Bitcoin Volatility vs GPR
+# Bitcoin Conditional Volatility vs Geopolitical Risk
 ggplot(
   data,
-  aes(GPRD, BTC_Volatility)
+  aes(
+    x = GPRD,
+    y = BTC_Volatility
+  )
 ) +
   
-  geom_point() +
+  geom_point(
+    alpha = 0.6
+  ) +
   
   geom_smooth(
     method = "lm",
-    colour = "red",
-    linewidth = 1,
     se = FALSE
   ) +
   
   geom_smooth(
     method = "loess",
-    colour = "blue",
-    linewidth = 1,
     se = TRUE
   ) +
   
   theme_minimal() +
   
   labs(
-    title = "Bitcoin Volatility vs Geopolitical Risk",
+    title = "Bitcoin Conditional Volatility vs Geopolitical Risk",
     x = "Geopolitical Risk Index",
-    y = "Conditional Volatility"
+    y = "Bitcoin Conditional Volatility"
   )
 
 
-# 7. Correlation Analysis
-returns.cor <- cor.test(
-  
-  data$BTC_log_returns,
-  
-  data$GPRD
-  
-)
-
+# 7. Correlation analysis
 volatility.cor <- cor.test(
   
   data$BTC_Volatility,
   
-  data$GPRD
+  data$GPRD,
+  
+  method = "pearson"
   
 )
 
-returns.cor
 volatility.cor
 
 
-# 8. Bitcoin Returns Regressions
-
-# Returns Model 1: No Lag
-returns.model1 <- lm(
+# 8. Correlation summary table
+correlation.summary <- data.frame(
   
-  BTC_log_returns ~
-    
-    GPRD,
+  Relationship = "Bitcoin Volatility vs GPR",
   
-  data = data
+  Correlation = unname(
+    volatility.cor$estimate
+  ),
   
-)
-
-
-# Returns Model 2: One Lag
-returns.model2 <- lm(
-  
-  BTC_log_returns ~
-    
-    GPRD +
-    
-    GPR_Lag1,
-  
-  data = data
+  P_Value = volatility.cor$p.value
   
 )
 
+correlation.summary$Correlation <-
+  round(
+    correlation.summary$Correlation,
+    4
+  )
 
-# Returns Model 3: Two Lags
-returns.model3 <- lm(
-  
-  BTC_log_returns ~
-    
-    GPRD +
-    
-    GPR_Lag1 +
-    
-    GPR_Lag2,
-  
-  data = data
-  
-)
+correlation.summary$P_Value <-
+  signif(
+    correlation.summary$P_Value,
+    4
+  )
+
+correlation.summary
 
 
-# 9. Bitcoin Volatility Regressions
+###############################################################
+# Section B: Volatility Regression Analysis
+###############################################################
 
-# Volatility Model 1: No Lag
+# 9. Estimate volatility regression models
+
+# Volatility Model 1: Contemporaneous GPR
 volatility.model1 <- lm(
   
   BTC_Volatility ~
@@ -207,7 +189,7 @@ volatility.model1 <- lm(
 )
 
 
-# Volatility Model 2: One Lag
+# Volatility Model 2: Contemporaneous GPR + 1-day lag
 volatility.model2 <- lm(
   
   BTC_Volatility ~
@@ -221,7 +203,7 @@ volatility.model2 <- lm(
 )
 
 
-# Volatility Model 3: Two Lags
+# Volatility Model 3: Contemporaneous GPR + 2-day lags
 volatility.model3 <- lm(
   
   BTC_Volatility ~
@@ -237,86 +219,43 @@ volatility.model3 <- lm(
 )
 
 
-# 10. Regression Output
-summary(returns.model1)      # Not significant
-summary(returns.model2)      # Not significant
-summary(returns.model3)      # Not significant
+# 10. Model summaries
+summary(volatility.model1)
 
-summary(volatility.model1)   # Significant negative relationship
-summary(volatility.model2)   # Lagged GPR is significant at the 5% level; contemporaneous GPR is marginally significant at 10%.
-summary(volatility.model3)   # Lag 2 is significant at the 5% level.
+summary(volatility.model2)
+
+summary(volatility.model3)
 
 
+# 11. 95% confidence intervals
+confint(volatility.model1)
 
-# 11. Model Comparison Tables
-returns.comparison <- data.frame(
+confint(volatility.model2)
+
+confint(volatility.model3)
+
+
+###############################################################
+# Section C: Model Comparison
+###############################################################
+
+# 12. Compare volatility regression models
+model.comparison <- data.frame(
   
   Model = c(
-    "Returns: No Lag",
-    "Returns: 1 Lag",
-    "Returns: 2 Lags"
-  ),
-  
-  Adj_R2 = c(
-    summary(returns.model1)$adj.r.squared,
-    summary(returns.model2)$adj.r.squared,
-    summary(returns.model3)$adj.r.squared
-  ),
-  
-  AIC = c(
-    AIC(returns.model1),
-    AIC(returns.model2),
-    AIC(returns.model3)
-  ),
-  
-  BIC = c(
-    BIC(returns.model1),
-    BIC(returns.model2),
-    BIC(returns.model3)
-  ),
-  
-  F_Statistic = c(
-    summary(returns.model1)$fstatistic[1],
-    summary(returns.model2)$fstatistic[1],
-    summary(returns.model3)$fstatistic[1]
-  ),
-  
-  Model_pvalue = c(
     
-    pf(
-      summary(returns.model1)$fstatistic[1],
-      summary(returns.model1)$fstatistic[2],
-      summary(returns.model1)$fstatistic[3],
-      lower.tail = FALSE
-    ),
-    
-    pf(
-      summary(returns.model2)$fstatistic[1],
-      summary(returns.model2)$fstatistic[2],
-      summary(returns.model2)$fstatistic[3],
-      lower.tail = FALSE
-    ),
-    
-    pf(
-      summary(returns.model3)$fstatistic[1],
-      summary(returns.model3)$fstatistic[2],
-      summary(returns.model3)$fstatistic[3],
-      lower.tail = FALSE
-    )
-    
-  )
-  
-)
-
-returns.comparison
-
-
-volatility.comparison <- data.frame(
-  
-  Model = c(
     "Volatility: No Lag",
+    
     "Volatility: 1 Lag",
+    
     "Volatility: 2 Lags"
+    
+  ),
+  
+  LogLikelihood = c(
+    as.numeric(logLik(volatility.model1)),
+    as.numeric(logLik(volatility.model2)),
+    as.numeric(logLik(volatility.model3))
   ),
   
   Adj_R2 = c(
@@ -335,6 +274,12 @@ volatility.comparison <- data.frame(
     BIC(volatility.model1),
     BIC(volatility.model2),
     BIC(volatility.model3)
+  ),
+  
+  Residual_SE = c(
+    summary(volatility.model1)$sigma,
+    summary(volatility.model2)$sigma,
+    summary(volatility.model3)$sigma
   ),
   
   F_Statistic = c(
@@ -370,16 +315,24 @@ volatility.comparison <- data.frame(
   
 )
 
-volatility.comparison
+model.comparison$Model_pvalue <-
+  signif(
+    model.comparison$Model_pvalue,
+    4
+  )
+
+model.comparison
+
 
 ###############################################################
-# Section B: Regression Diagnostics
+# Section D: Model Diagnostics
 ###############################################################
 
-# 12. Diagnostic Plots
+# 13. Diagnostic plots
 
-# Volatility Model 2 (1 Lag) and Volatility Model 3 (2 Lags)
 par(mfrow = c(2,2))
+
+plot(volatility.model1)
 
 plot(volatility.model2)
 
@@ -388,7 +341,11 @@ plot(volatility.model3)
 par(mfrow = c(1,1))
 
 
-# 13. Normality Tests
+# 14. Jarque-Bera tests
+jb.model1 <- jarque.bera.test(
+  residuals(volatility.model1)
+)
+
 jb.model2 <- jarque.bera.test(
   residuals(volatility.model2)
 )
@@ -397,20 +354,32 @@ jb.model3 <- jarque.bera.test(
   residuals(volatility.model3)
 )
 
-jb.model2   # The residuals are not normally distributed.
-jb.model3   # The residuals are not normally distributed.
+jb.model1
+jb.model2
+jb.model3
 
 
-# 14. Autocorrelation Tests
+# 15. Autocorrelation tests
 
 # Durbin-Watson
+dw.model1 <- dwtest(volatility.model1)
+
 dw.model2 <- dwtest(volatility.model2)
+
 dw.model3 <- dwtest(volatility.model3)
 
-dw.model2   # Strong evidence of positive residual autocorrelation (DW << 2).
-dw.model3   # Strong evidence of positive residual autocorrelation (DW << 2).
+dw.model1
+dw.model2
+dw.model3
+
 
 # Ljung-Box
+lb.model1 <- Box.test(
+  residuals(volatility.model1),
+  lag = 20,
+  type = "Ljung-Box"
+)
+
 lb.model2 <- Box.test(
   residuals(volatility.model2),
   lag = 20,
@@ -423,35 +392,58 @@ lb.model3 <- Box.test(
   type = "Ljung-Box"
 )
 
-lb.model2   # Residual autocorrelation remains across multiple (20) lags.
-lb.model3   # Residual autocorrelation remains across multiple (20) lags.
+lb.model1
+lb.model2
+lb.model3
 
 
-# 15. Heteroskedasticity Tests
-# Examines whether the variance of the regression residuals is constant.
+# 16. Heteroskedasticity tests
+
+bp.model1 <- bptest(volatility.model1)
 
 bp.model2 <- bptest(volatility.model2)
 
 bp.model3 <- bptest(volatility.model3)
 
-bp.model2   # There is evidence of heteroskedasticity.
-bp.model3   # There is evidence of heteroskedasticity.
+bp.model1
+bp.model2
+bp.model3
 
 
-# 16. Multicollinearity
-vif.model2 <- vif(volatility.model2)
+# 17. Multicollinearity
 
-vif.model3 <- vif(volatility.model3)
+vif.model2 <- vif(
+  volatility.model2
+)
 
-vif.model2   # No evidence of problematic multicollinearity.
-vif.model3   # No evidence of problematic multicollinearity.
+vif.model3 <- vif(
+  volatility.model3
+)
+
+vif.model2
+vif.model3
 
 
-# 17. Newey-West Robust Inference
-# Diagnostic tests indicate significant residual
-# autocorrelation and heteroskedasticity.
-# Therefore, Newey-West HAC standard errors are used
-# for statistical inference.
+###############################################################
+# Section E: Robust Inference
+###############################################################
+
+# 18. Newey-West robust standard errors
+
+nw.model1 <- coeftest(
+  
+  volatility.model1,
+  
+  vcov = NeweyWest(
+    
+    volatility.model1,
+    
+    prewhite = FALSE
+    
+  )
+  
+)
+
 
 nw.model2 <- coeftest(
   
@@ -467,7 +459,6 @@ nw.model2 <- coeftest(
   
 )
 
-nw.model2   # HAC-robust inference; lagged GPR is significant at the 5% level, while contemporaneous GPR is not..
 
 nw.model3 <- coeftest(
   
@@ -483,77 +474,190 @@ nw.model3 <- coeftest(
   
 )
 
-nw.model3   # HAC-robust inference; lag 1 is significant at 10% and lag 2 is significant at 5%.
+
+# 19. Display Newey-West results
+
+nw.model1
+
+nw.model2
+
+nw.model3
 
 
-# 18. Model Comparison
-model.comparison <- data.frame(
+###############################################################
+# Section F: Regression Summary
+###############################################################
+
+# 20. Regression summary table
+regression.summary <- data.frame(
   
   Model = c(
+    
+    "Volatility: No Lag",
+    
     "Volatility: 1 Lag",
+    
     "Volatility: 2 Lags"
+    
   ),
   
-  LogLikelihood = c(
-    as.numeric(logLik(volatility.model2)),
-    as.numeric(logLik(volatility.model3))
+  GPR_Coefficient = c(
+    unname(coef(volatility.model1)["GPRD"]),
+    unname(coef(volatility.model2)["GPRD"]),
+    unname(coef(volatility.model3)["GPRD"])
+  ),
+  
+  GPR_Lag1_Coefficient = c(
+    NA,
+    unname(coef(volatility.model2)["GPR_Lag1"]),
+    unname(coef(volatility.model3)["GPR_Lag1"])
+  ),
+  
+  GPR_Lag2_Coefficient = c(
+    NA,
+    NA,
+    unname(coef(volatility.model3)["GPR_Lag2"])
   ),
   
   Adj_R2 = c(
+    summary(volatility.model1)$adj.r.squared,
     summary(volatility.model2)$adj.r.squared,
     summary(volatility.model3)$adj.r.squared
   ),
   
-  AIC = c(
-    AIC(volatility.model2),
-    AIC(volatility.model3)
-  ),
-  
-  BIC = c(
-    BIC(volatility.model2),
-    BIC(volatility.model3)
-  ),
-  
-  Residual_SE = c(
-    summary(volatility.model2)$sigma,
-    summary(volatility.model3)$sigma
-  ),
-  
-  Jarque_Bera_p_value = c(
-    jb.model2$p.value,
-    jb.model3$p.value
-  ),
-  
-  DW_Statistic = c(
-    as.numeric(dw.model2$statistic),
-    as.numeric(dw.model3$statistic)
-  ),
-  
-  DW_p_value = c(
-    dw.model2$p.value,
-    dw.model3$p.value
-  ),
-  
-  LjungBox_p_value = c(
-    lb.model2$p.value,
-    lb.model3$p.value
-  ),
-  
-  BreuschPagan_p_value = c(
-    bp.model2$p.value,
-    bp.model3$p.value
-  ),
-  
-  Max_VIF = c(
-    max(vif.model2),
-    max(vif.model3)
+  Final_GPR_pvalue = c(
+    nw.model1["GPRD","Pr(>|t|)"],
+    nw.model2["GPRD","Pr(>|t|)"],
+    nw.model3["GPRD","Pr(>|t|)"]
   )
   
 )
 
-model.comparison[-1] <- round(model.comparison[-1], 4)
+regression.summary$Significant_5pct <- ifelse(
+  
+  regression.summary$Final_GPR_pvalue < 0.05,
+  
+  "Yes",
+  
+  "No"
+  
+)
 
-model.comparison
+regression.summary$GPR_Coefficient <-
+  signif(
+    regression.summary$GPR_Coefficient,
+    4
+  )
+
+regression.summary$GPR_Lag1_Coefficient <-
+  signif(
+    regression.summary$GPR_Lag1_Coefficient,
+    4
+  )
+
+regression.summary$GPR_Lag2_Coefficient <-
+  signif(
+    regression.summary$GPR_Lag2_Coefficient,
+    4
+  )
+
+regression.summary$Adj_R2 <-
+  round(
+    regression.summary$Adj_R2,
+    4
+  )
+
+regression.summary$Final_GPR_pvalue <-
+  signif(
+    regression.summary$Final_GPR_pvalue,
+    4
+  )
+
+regression.summary
+
+
+###############################################################
+# Section G: Overall Summary
+###############################################################
+
+# 21. Overall findings table
+overall.summary <- data.frame(
+  
+  Model = c(
+    
+    "Volatility: No Lag",
+    
+    "Volatility: 1 Lag",
+    
+    "Volatility: 2 Lags"
+    
+  ),
+  
+  Correlation = rep(
+    unname(volatility.cor$estimate),
+    3
+  ),
+  
+  Correlation_pvalue = rep(
+    volatility.cor$p.value,
+    3
+  ),
+  
+  Adj_R2 = c(
+    summary(volatility.model1)$adj.r.squared,
+    summary(volatility.model2)$adj.r.squared,
+    summary(volatility.model3)$adj.r.squared
+  ),
+  
+  Final_GPR_pvalue = c(
+    nw.model1["GPRD","Pr(>|t|)"],
+    nw.model2["GPRD","Pr(>|t|)"],
+    nw.model3["GPRD","Pr(>|t|)"]
+  )
+  
+)
+
+overall.summary$Significant_5pct <- ifelse(
+  
+  overall.summary$Final_GPR_pvalue < 0.05,
+  
+  "Yes",
+  
+  "No"
+  
+)
+
+overall.summary$Correlation <-
+  round(
+    overall.summary$Correlation,
+    4
+  )
+
+overall.summary$Correlation_pvalue <-
+  signif(
+    overall.summary$Correlation_pvalue,
+    4
+  )
+
+overall.summary$Adj_R2 <-
+  round(
+    overall.summary$Adj_R2,
+    4
+  )
+
+overall.summary$Final_GPR_pvalue <-
+  signif(
+    overall.summary$Final_GPR_pvalue,
+    4
+  )
+
+overall.summary
+
+
+
+
+
+
 
   
 

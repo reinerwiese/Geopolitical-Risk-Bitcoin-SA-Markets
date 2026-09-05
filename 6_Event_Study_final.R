@@ -19,7 +19,7 @@ library(zoo)
 
 #2 Import and prepare data
 data <- read_excel(
-  "Thesis_Data.xlsx",
+  "C:/Users/chris/OneDrive/Documents/Thesis/Thesis_Data.xlsx",
   sheet = "Data",
   na="NA"
 )
@@ -73,7 +73,7 @@ ggplot(
   geom_line(linewidth = 0.8) +
   theme_minimal() +
   labs(
-    title = "Geopolitical Risk Index (2020-2026)",
+    title = "Geopolitical Risk Index (2014-2026)",
     x = "Date",
     y = "GPR Index"
   )
@@ -155,7 +155,7 @@ minima <- minima[
 #8 Peak prominence analysis
 episode.table <- data.frame()
 
-last.obs <- nrow(data)
+last.obs <- max(which(!is.na(gpr.ma)))
 
 for(i in seq_along(maxima)){
   
@@ -235,93 +235,111 @@ episode.table
 
 
 #9 Final geopolitical case studies
+
 top.events <- episode.table[
   order(-episode.table$Prominence),
-][1:2,]
+][1:5,]
+
+top.events <- top.events[
+  order(top.events$Start_Date),
+]
 
 events <- data.frame(
   
   Event = c(
-    "Russia-Ukraine",
-    "Israel-Hamas",
-    "Iran-Israel"
+    "Russia-Ukraine (Crimea Crisis)",
+    "Paris Attacks",
+    "Russia-Ukraine Invasion",
+    "Israel-Hamas War",
+    "US-Israel-Iran Conflict"
   ),
   
-  Start_Date = c(
-    top.events$Start_Date[1],
-    top.events$Start_Date[2],
-    tail(break.dates$Date,1)
-  ),
+  Start_Date = top.events$Start_Date,
   
-  End_Date = c(
-    top.events$End_Date[1],
-    top.events$End_Date[2],
-    as.Date("2026-04-19")
-  )
+  End_Date = top.events$End_Date
   
 )
 
 events
-
 
 ###############################################################
 # Section B: Event Study Analysis
 ###############################################################
 
 #10 Create event datasets
-ukraine <- subset(
+
+crimea <- subset(
   data,
   Date >= events$Start_Date[1] &
     Date <= events$End_Date[1]
 )
 
-hamas <- subset(
+paris <- subset(
   data,
   Date >= events$Start_Date[2] &
     Date <= events$End_Date[2]
 )
 
-iran <- subset(
+ukraine <- subset(
   data,
   Date >= events$Start_Date[3] &
     Date <= events$End_Date[3]
 )
 
+hamas <- subset(
+  data,
+  Date >= events$Start_Date[4] &
+    Date <= events$End_Date[4]
+)
+
+iran <- subset(
+  data,
+  Date >= events$Start_Date[5] &
+    Date <= events$End_Date[5]
+)
+
 
 #11 Event summary statistics
+
 event.statistics <- data.frame(
   
-  Event = c(
-    "Russia-Ukraine",
-    "Israel-Hamas",
-    "Iran-Israel"
-  ),
+  Event = events$Event,
   
   Sample_Size = c(
+    nrow(crimea),
+    nrow(paris),
     nrow(ukraine),
     nrow(hamas),
     nrow(iran)
   ),
   
   Mean_GPR = c(
+    mean(crimea$GPRD),
+    mean(paris$GPRD),
     mean(ukraine$GPRD),
     mean(hamas$GPRD),
     mean(iran$GPRD)
   ),
   
   SD_GPR = c(
+    sd(crimea$GPRD),
+    sd(paris$GPRD),
     sd(ukraine$GPRD),
     sd(hamas$GPRD),
     sd(iran$GPRD)
   ),
   
   Mean_BTC_Volatility = c(
+    mean(crimea$BTC_Volatility),
+    mean(paris$BTC_Volatility),
     mean(ukraine$BTC_Volatility),
     mean(hamas$BTC_Volatility),
     mean(iran$BTC_Volatility)
   ),
   
   SD_BTC_Volatility = c(
+    sd(crimea$BTC_Volatility),
+    sd(paris$BTC_Volatility),
     sd(ukraine$BTC_Volatility),
     sd(hamas$BTC_Volatility),
     sd(iran$BTC_Volatility)
@@ -338,6 +356,17 @@ event.statistics
 
 
 #12 Correlation analysis
+
+cor.crimea <- cor.test(
+  crimea$BTC_Volatility,
+  crimea$GPRD
+)
+
+cor.paris <- cor.test(
+  paris$BTC_Volatility,
+  paris$GPRD
+)
+
 cor.ukraine <- cor.test(
   ukraine$BTC_Volatility,
   ukraine$GPRD
@@ -353,6 +382,10 @@ cor.iran <- cor.test(
   iran$GPRD
 )
 
+cor.crimea
+
+cor.paris
+
 cor.ukraine
 
 cor.hamas
@@ -361,39 +394,46 @@ cor.iran
 
 
 #13 Event comparison
+
 event.summary <- data.frame(
   
-  Event = c(
-    "Russia-Ukraine",
-    "Israel-Hamas",
-    "Iran-Israel"
-  ),
+  Event = events$Event,
   
   Sample_Size = c(
+    nrow(crimea),
+    nrow(paris),
     nrow(ukraine),
     nrow(hamas),
     nrow(iran)
   ),
   
   Mean_GPR = c(
+    mean(crimea$GPRD),
+    mean(paris$GPRD),
     mean(ukraine$GPRD),
     mean(hamas$GPRD),
     mean(iran$GPRD)
   ),
   
   Mean_BTC_Volatility = c(
+    mean(crimea$BTC_Volatility),
+    mean(paris$BTC_Volatility),
     mean(ukraine$BTC_Volatility),
     mean(hamas$BTC_Volatility),
     mean(iran$BTC_Volatility)
   ),
   
   Correlation = c(
+    unname(cor.crimea$estimate),
+    unname(cor.paris$estimate),
     unname(cor.ukraine$estimate),
     unname(cor.hamas$estimate),
     unname(cor.iran$estimate)
   ),
   
   Correlation_P_Value = c(
+    cor.crimea$p.value,
+    cor.paris$p.value,
     cor.ukraine$p.value,
     cor.hamas$p.value,
     cor.iran$p.value
@@ -403,6 +443,7 @@ event.summary <- data.frame(
 
 
 #14 Format event comparison table
+
 event.summary$Mean_GPR <-
   round(event.summary$Mean_GPR,2)
 
@@ -430,7 +471,23 @@ print(event.summary)
 
 #15 Event-specific regression models
 
-# Russia-Ukraine
+# Russia-Ukraine (Crimea Crisis)
+model.crimea <- lm(
+  BTC_Volatility ~ GPRD,
+  data = crimea
+)
+
+summary(model.crimea)
+
+# Paris Attacks
+model.paris <- lm(
+  BTC_Volatility ~ GPRD,
+  data = paris
+)
+
+summary(model.paris)
+
+# Russia-Ukraine Invasion
 model.ukraine <- lm(
   BTC_Volatility ~ GPRD,
   data = ukraine
@@ -438,7 +495,7 @@ model.ukraine <- lm(
 
 summary(model.ukraine)
 
-# Israel-Hamas
+# Israel-Hamas War
 model.hamas <- lm(
   BTC_Volatility ~ GPRD,
   data = hamas
@@ -446,7 +503,7 @@ model.hamas <- lm(
 
 summary(model.hamas)
 
-# Iran-Israel
+# US-Israel-Iran Conflict
 model.iran <- lm(
   BTC_Volatility ~ GPRD,
   data = iran
@@ -460,6 +517,10 @@ summary(model.iran)
 # Diagnostic plots
 par(mfrow = c(2,2))
 
+plot(model.crimea)
+
+plot(model.paris)
+
 plot(model.ukraine)
 
 plot(model.hamas)
@@ -470,6 +531,14 @@ par(mfrow = c(1,1))
 
 
 # Jarque-Bera tests
+jb.crimea <- jarque.bera.test(
+  residuals(model.crimea)
+)
+
+jb.paris <- jarque.bera.test(
+  residuals(model.paris)
+)
+
 jb.ukraine <- jarque.bera.test(
   residuals(model.ukraine)
 )
@@ -482,30 +551,44 @@ jb.iran <- jarque.bera.test(
   residuals(model.iran)
 )
 
+jb.crimea
+jb.paris
 jb.ukraine
 jb.hamas
 jb.iran
 
 
 # Durbin-Watson tests
+dw.crimea <- dwtest(model.crimea)
+
+dw.paris <- dwtest(model.paris)
+
 dw.ukraine <- dwtest(model.ukraine)
 
 dw.hamas <- dwtest(model.hamas)
 
 dw.iran <- dwtest(model.iran)
 
+dw.crimea
+dw.paris
 dw.ukraine
 dw.hamas
 dw.iran
 
 
 # Breusch-Pagan tests
+bp.crimea <- bptest(model.crimea)
+
+bp.paris <- bptest(model.paris)
+
 bp.ukraine <- bptest(model.ukraine)
 
 bp.hamas <- bptest(model.hamas)
 
 bp.iran <- bptest(model.iran)
 
+bp.crimea
+bp.paris
 bp.ukraine
 bp.hamas
 bp.iran
@@ -513,7 +596,37 @@ bp.iran
 
 #17 Newey-West robust inference
 
-# Russia-Ukraine
+# Russia-Ukraine (Crimea Crisis)
+nw.crimea <- coeftest(
+  
+  model.crimea,
+  
+  vcov = NeweyWest(
+    
+    model.crimea,
+    
+    prewhite = FALSE
+    
+  )
+  
+)
+
+# Paris Attacks
+nw.paris <- coeftest(
+  
+  model.paris,
+  
+  vcov = NeweyWest(
+    
+    model.paris,
+    
+    prewhite = FALSE
+    
+  )
+  
+)
+
+# Russia-Ukraine Invasion
 nw.ukraine <- coeftest(
   
   model.ukraine,
@@ -528,7 +641,7 @@ nw.ukraine <- coeftest(
   
 )
 
-# Israel-Hamas
+# Israel-Hamas War
 nw.hamas <- coeftest(
   
   model.hamas,
@@ -543,7 +656,7 @@ nw.hamas <- coeftest(
   
 )
 
-# Iran-Israel
+# US-Israel-Iran Conflict
 nw.iran <- coeftest(
   
   model.iran,
@@ -558,6 +671,8 @@ nw.iran <- coeftest(
   
 )
 
+nw.crimea
+nw.paris
 nw.ukraine
 nw.hamas
 nw.iran
@@ -566,277 +681,59 @@ nw.iran
 #18 Event regression comparison
 event.regression <- data.frame(
   
-  Event = c(
-    "Russia-Ukraine",
-    "Israel-Hamas",
-    "Iran-Israel"
-  ),
+  Event = events$Event,
   
   Sample_Size = c(
+    nrow(crimea),
+    nrow(paris),
     nrow(ukraine),
     nrow(hamas),
     nrow(iran)
   ),
   
   Correlation = c(
+    unname(cor.crimea$estimate),
+    unname(cor.paris$estimate),
     unname(cor.ukraine$estimate),
     unname(cor.hamas$estimate),
     unname(cor.iran$estimate)
   ),
   
   Intercept = c(
+    coef(model.crimea)[1],
+    coef(model.paris)[1],
     coef(model.ukraine)[1],
     coef(model.hamas)[1],
     coef(model.iran)[1]
   ),
   
   GPR_Coefficient = c(
+    coef(model.crimea)[2],
+    coef(model.paris)[2],
     coef(model.ukraine)[2],
     coef(model.hamas)[2],
     coef(model.iran)[2]
   ),
   
   Adj_R2 = c(
+    summary(model.crimea)$adj.r.squared,
+    summary(model.paris)$adj.r.squared,
     summary(model.ukraine)$adj.r.squared,
     summary(model.hamas)$adj.r.squared,
     summary(model.iran)$adj.r.squared
   ),
   
   Residual_SE = c(
+    summary(model.crimea)$sigma,
+    summary(model.paris)$sigma,
     summary(model.ukraine)$sigma,
     summary(model.hamas)$sigma,
     summary(model.iran)$sigma
   ),
   
   NeweyWest_P_Value = c(
-    nw.ukraine["GPRD","Pr(>|t|)"],
-    nw.hamas["GPRD","Pr(>|t|)"],
-    nw.iran["GPRD","Pr(>|t|)"]
-  )
-  
-)
-
-
-#19 Format event regression table
-event.regression$Sample_Size <-
-  round(event.regression$Sample_Size,0)
-
-event.regression$Correlation <-
-  round(event.regression$Correlation,4)
-
-event.regression$Intercept <-
-  round(event.regression$Intercept,4)
-
-event.regression$GPR_Coefficient <-
-  signif(event.regression$GPR_Coefficient,4)
-
-event.regression$Adj_R2 <-
-  round(event.regression$Adj_R2,4)
-
-event.regression$Residual_SE <-
-  round(event.regression$Residual_SE,5)
-
-event.regression$NeweyWest_P_Value <-
-  signif(event.regression$NeweyWest_P_Value,4)
-
-event.regression$Significant <- ifelse(
-  
-  event.regression$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(event.regression)
-
-
-###############################################################
-# Section C: Event Regression Analysis
-###############################################################
-
-#15 Event-specific regression models
-
-# Russia-Ukraine
-model.ukraine <- lm(
-  BTC_Volatility ~ GPRD,
-  data = ukraine
-)
-
-summary(model.ukraine)
-
-# Israel-Hamas
-model.hamas <- lm(
-  BTC_Volatility ~ GPRD,
-  data = hamas
-)
-
-summary(model.hamas)
-
-# Iran-Israel
-model.iran <- lm(
-  BTC_Volatility ~ GPRD,
-  data = iran
-)
-
-summary(model.iran)
-
-
-#16 Regression diagnostic tests
-
-# Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(model.ukraine)
-
-plot(model.hamas)
-
-plot(model.iran)
-
-par(mfrow = c(1,1))
-
-
-# Jarque-Bera tests
-jb.ukraine <- jarque.bera.test(
-  residuals(model.ukraine)
-)
-
-jb.hamas <- jarque.bera.test(
-  residuals(model.hamas)
-)
-
-jb.iran <- jarque.bera.test(
-  residuals(model.iran)
-)
-
-jb.ukraine
-jb.hamas
-jb.iran
-
-
-# Durbin-Watson tests
-dw.ukraine <- dwtest(model.ukraine)
-
-dw.hamas <- dwtest(model.hamas)
-
-dw.iran <- dwtest(model.iran)
-
-dw.ukraine
-dw.hamas
-dw.iran
-
-
-# Breusch-Pagan tests
-bp.ukraine <- bptest(model.ukraine)
-
-bp.hamas <- bptest(model.hamas)
-
-bp.iran <- bptest(model.iran)
-
-bp.ukraine
-bp.hamas
-bp.iran
-
-
-#17 Newey-West robust inference
-
-# Russia-Ukraine
-nw.ukraine <- coeftest(
-  
-  model.ukraine,
-  
-  vcov = NeweyWest(
-    
-    model.ukraine,
-    
-    prewhite = FALSE
-    
-  )
-  
-)
-
-# Israel-Hamas
-nw.hamas <- coeftest(
-  
-  model.hamas,
-  
-  vcov = NeweyWest(
-    
-    model.hamas,
-    
-    prewhite = FALSE
-    
-  )
-  
-)
-
-# Iran-Israel
-nw.iran <- coeftest(
-  
-  model.iran,
-  
-  vcov = NeweyWest(
-    
-    model.iran,
-    
-    prewhite = FALSE
-    
-  )
-  
-)
-
-nw.ukraine
-nw.hamas
-nw.iran
-
-
-#18 Event regression comparison
-event.regression <- data.frame(
-  
-  Event = c(
-    "Russia-Ukraine",
-    "Israel-Hamas",
-    "Iran-Israel"
-  ),
-  
-  Sample_Size = c(
-    nrow(ukraine),
-    nrow(hamas),
-    nrow(iran)
-  ),
-  
-  Correlation = c(
-    unname(cor.ukraine$estimate),
-    unname(cor.hamas$estimate),
-    unname(cor.iran$estimate)
-  ),
-  
-  Intercept = c(
-    coef(model.ukraine)[1],
-    coef(model.hamas)[1],
-    coef(model.iran)[1]
-  ),
-  
-  GPR_Coefficient = c(
-    coef(model.ukraine)[2],
-    coef(model.hamas)[2],
-    coef(model.iran)[2]
-  ),
-  
-  Adj_R2 = c(
-    summary(model.ukraine)$adj.r.squared,
-    summary(model.hamas)$adj.r.squared,
-    summary(model.iran)$adj.r.squared
-  ),
-  
-  Residual_SE = c(
-    summary(model.ukraine)$sigma,
-    summary(model.hamas)$sigma,
-    summary(model.iran)$sigma
-  ),
-  
-  NeweyWest_P_Value = c(
+    nw.crimea["GPRD","Pr(>|t|)"],
+    nw.paris["GPRD","Pr(>|t|)"],
     nw.ukraine["GPRD","Pr(>|t|)"],
     nw.hamas["GPRD","Pr(>|t|)"],
     nw.iran["GPRD","Pr(>|t|)"]

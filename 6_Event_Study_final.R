@@ -19,7 +19,7 @@ library(zoo)
 
 #2 Import and prepare data
 data <- read_excel(
-  "C:/Users/chris/OneDrive/Documents/Thesis/Thesis_Data.xlsx",
+  "Thesis_Data.xlsx",
   sheet = "Data",
   na="NA"
 )

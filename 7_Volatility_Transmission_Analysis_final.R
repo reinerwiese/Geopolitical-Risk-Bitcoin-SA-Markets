@@ -15,9 +15,9 @@ library(car)
 
 #2 Import and prepare data
 data <- read_excel(
-  "Thesis_Data.xlsx",
+  "C:/Users/chris/OneDrive/Documents/Thesis/Thesis_Data.xlsx",
   sheet = "Data",
-  na="NA"
+  na = "NA"
 )
 
 data <- na.omit(data)
@@ -92,7 +92,7 @@ data$J303_Volatility <- as.numeric(
 )
 
 
-#5 Baseline relationship between Bitcoin and J303 volatility
+#5 Baseline relationship between Bitcoin and J303 conditional volatility
 overall.cor <- cor.test(
   
   data$BTC_Volatility,
@@ -106,7 +106,6 @@ overall.cor
 overall.model <- lm(
   
   J303_Volatility ~
-    
     BTC_Volatility,
   
   data = data
@@ -116,7 +115,7 @@ overall.model <- lm(
 summary(overall.model)
 
 
-#6 Baseline regression diagnostics
+#6 Baseline regression diagnostics and robust inference
 
 # Diagnostic plots
 par(mfrow = c(2,2))
@@ -126,7 +125,7 @@ plot(overall.model)
 par(mfrow = c(1,1))
 
 
-# Jarque-Bera test
+# Jarque-Bera test for residual normality
 jb.overall <- jarque.bera.test(
   residuals(overall.model)
 )
@@ -134,7 +133,7 @@ jb.overall <- jarque.bera.test(
 jb.overall
 
 
-# Durbin-Watson test
+# Durbin-Watson test for residual autocorrelation
 dw.overall <- dwtest(
   overall.model
 )
@@ -142,7 +141,7 @@ dw.overall <- dwtest(
 dw.overall
 
 
-# Breusch-Pagan test
+# Breusch-Pagan test for heteroskedasticity
 bp.overall <- bptest(
   overall.model
 )
@@ -165,7 +164,7 @@ nw.overall <- coeftest(
 nw.overall
 
 
-#7 Baseline summary table
+#7 Baseline regression summary table
 baseline.summary <- data.frame(
   
   Correlation =
@@ -234,7 +233,7 @@ print(baseline.summary)
 #8 Define geopolitical risk regimes
 data$GPR_Regime <- ifelse(
   
-  data$GPRD < 170,
+  data$GPRD < 153,
   
   "Lower GPR",
   
@@ -245,7 +244,7 @@ data$GPR_Regime <- ifelse(
 table(data$GPR_Regime)
 
 
-#9 Split data by regime
+#9 Split data by geopolitical risk regime
 lower.gpr <- subset(
   
   data,
@@ -263,7 +262,7 @@ elevated.gpr <- subset(
 )
 
 
-#10 Summary statistics by regime
+#10 Summary statistics by geopolitical risk regime
 regime.statistics <- data.frame(
   
   Regime = c(
@@ -316,7 +315,7 @@ regime.statistics[-1] <- round(
 print(regime.statistics)
 
 
-#11 Correlation analysis
+#11 Correlation analysis by geopolitical risk regime
 cor.lower <- cor.test(
   
   lower.gpr$BTC_Volatility,
@@ -364,10 +363,16 @@ correlation.summary <- data.frame(
 )
 
 correlation.summary$Correlation <-
-  round(correlation.summary$Correlation, 4)
+  round(
+    correlation.summary$Correlation,
+    4
+  )
 
 correlation.summary$Correlation_P_Value <-
-  signif(correlation.summary$Correlation_P_Value, 4)
+  signif(
+    correlation.summary$Correlation_P_Value,
+    4
+  )
 
 correlation.summary$Significant <- ifelse(
   
@@ -387,7 +392,8 @@ print(correlation.summary)
 # Lower GPR
 model.lower <- lm(
   
-  J303_Volatility ~ BTC_Volatility,
+  J303_Volatility ~
+    BTC_Volatility,
   
   data = lower.gpr
   
@@ -399,7 +405,8 @@ summary(model.lower)
 # Elevated GPR
 model.elevated <- lm(
   
-  J303_Volatility ~ BTC_Volatility,
+  J303_Volatility ~
+    BTC_Volatility,
   
   data = elevated.gpr
   
@@ -408,7 +415,7 @@ model.elevated <- lm(
 summary(model.elevated)
 
 
-#14 Regression diagnostic tests
+#14 Regime-specific regression diagnostics and robust inference
 
 # Diagnostic plots
 par(mfrow = c(2,2))
@@ -420,7 +427,7 @@ plot(model.elevated)
 par(mfrow = c(1,1))
 
 
-# Jarque-Bera tests
+# Jarque-Bera tests for residual normality
 jb.lower <- jarque.bera.test(
   residuals(model.lower)
 )
@@ -434,20 +441,28 @@ jb.lower
 jb.elevated
 
 
-# Durbin-Watson tests
-dw.lower <- dwtest(model.lower)
+# Durbin-Watson tests for residual autocorrelation
+dw.lower <- dwtest(
+  model.lower
+)
 
-dw.elevated <- dwtest(model.elevated)
+dw.elevated <- dwtest(
+  model.elevated
+)
 
 dw.lower
 
 dw.elevated
 
 
-# Breusch-Pagan tests
-bp.lower <- bptest(model.lower)
+# Breusch-Pagan tests for heteroskedasticity
+bp.lower <- bptest(
+  model.lower
+)
 
-bp.elevated <- bptest(model.elevated)
+bp.elevated <- bptest(
+  model.elevated
+)
 
 bp.lower
 
@@ -460,11 +475,8 @@ nw.lower <- coeftest(
   model.lower,
   
   vcov = NeweyWest(
-    
     model.lower,
-    
     prewhite = FALSE
-    
   )
   
 )
@@ -474,11 +486,8 @@ nw.elevated <- coeftest(
   model.elevated,
   
   vcov = NeweyWest(
-    
     model.elevated,
-    
     prewhite = FALSE
-    
   )
   
 )
@@ -488,7 +497,7 @@ nw.lower
 nw.elevated
 
 
-#15 Regression summary table
+#15 Regime-specific regression summary table
 regression.summary <- data.frame(
   
   Regime = c(
@@ -522,26 +531,47 @@ regression.summary <- data.frame(
   ),
   
   NeweyWest_P_Value = c(
-    nw.lower["BTC_Volatility","Pr(>|t|)"],
-    nw.elevated["BTC_Volatility","Pr(>|t|)"]
+    nw.lower[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.elevated[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ]
   )
   
 )
 
 regression.summary$Correlation <-
-  round(regression.summary$Correlation, 4)
+  round(
+    regression.summary$Correlation,
+    4
+  )
 
 regression.summary$BTC_Coefficient <-
-  signif(regression.summary$BTC_Coefficient, 4)
+  signif(
+    regression.summary$BTC_Coefficient,
+    4
+  )
 
 regression.summary$Adj_R2 <-
-  round(regression.summary$Adj_R2, 4)
+  round(
+    regression.summary$Adj_R2,
+    4
+  )
 
 regression.summary$Residual_SE <-
-  round(regression.summary$Residual_SE, 5)
+  round(
+    regression.summary$Residual_SE,
+    5
+  )
 
 regression.summary$NeweyWest_P_Value <-
-  signif(regression.summary$NeweyWest_P_Value, 4)
+  signif(
+    regression.summary$NeweyWest_P_Value,
+    4
+  )
 
 regression.summary$Significant <- ifelse(
   
@@ -556,7 +586,7 @@ regression.summary$Significant <- ifelse(
 print(regression.summary)
 
 
-#16 Fisher r-to-z test
+#16 Fisher r-to-z test comparing regime correlations
 z.lower <- atanh(
   cor.lower$estimate
 )
@@ -573,39 +603,23 @@ z.statistic <- (
       1 / (nrow(elevated.gpr) - 3)
   )
 
+z.statistic
+
 p.value <- 2 * (
   1 -
     pnorm(abs(z.statistic))
 )
 
-cat(
-  "Fisher z statistic =",
-  round(z.statistic, 4),
-  "\n"
-)
+# Fisher z-test result
+round(z.statistic, 4)
 
-cat(
-  "p-value =",
-  signif(p.value, 4),
-  "\n"
-)
+signif(p.value, 4)
 
-if(p.value < 0.05){
-  
-  cat(
-    "Conclusion: The correlations differ significantly between geopolitical risk regimes.\n"
-  )
-  
-} else {
-  
-  cat(
-    "Conclusion: No statistically significant difference exists between the correlations across geopolitical risk regimes.\n"
-  )
-  
-}
+# Fisher z-test: z = 1.0649, p = 0.2869
+# No statistically significant difference exists between the correlations across geopolitical risk regimes
 
 
-#17 Interaction model
+#17 Interaction model testing whether the volatility relationship differs by regime
 data$GPR_Regime <- factor(
   
   data$GPR_Regime,
@@ -620,7 +634,8 @@ data$GPR_Regime <- factor(
 interaction.model <- lm(
   
   J303_Volatility ~
-    BTC_Volatility * GPR_Regime,
+    BTC_Volatility *
+    GPR_Regime,
   
   data = data
   
@@ -629,7 +644,7 @@ interaction.model <- lm(
 summary(interaction.model)
 
 
-#18 Interaction model diagnostics
+#18 Interaction model diagnostics and robust inference
 
 # Diagnostic plots
 par(mfrow = c(2,2))
@@ -639,7 +654,7 @@ plot(interaction.model)
 par(mfrow = c(1,1))
 
 
-# Jarque-Bera test
+# Jarque-Bera test for residual normality
 jb.interaction <- jarque.bera.test(
   residuals(interaction.model)
 )
@@ -647,7 +662,7 @@ jb.interaction <- jarque.bera.test(
 jb.interaction
 
 
-# Durbin-Watson test
+# Durbin-Watson test for residual autocorrelation
 dw.interaction <- dwtest(
   interaction.model
 )
@@ -655,7 +670,7 @@ dw.interaction <- dwtest(
 dw.interaction
 
 
-# Breusch-Pagan test
+# Breusch-Pagan test for heteroskedasticity
 bp.interaction <- bptest(
   interaction.model
 )
@@ -669,11 +684,8 @@ interaction.nw <- coeftest(
   interaction.model,
   
   vcov = NeweyWest(
-    
     interaction.model,
-    
     prewhite = FALSE
-    
   )
   
 )
@@ -681,7 +693,7 @@ interaction.nw <- coeftest(
 interaction.nw
 
 
-#19 Overall regime summary
+#19 Regime-level summary of correlations and robust regression significance
 overall.summary <- data.frame(
   
   Regime = c(
@@ -695,18 +707,30 @@ overall.summary <- data.frame(
   ),
   
   NeweyWest_P_Value = c(
-    nw.lower["BTC_Volatility","Pr(>|t|)"],
-    nw.elevated["BTC_Volatility","Pr(>|t|)"]
+    nw.lower[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.elevated[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ]
   ),
   
   Significant = c(
     ifelse(
-      nw.lower["BTC_Volatility","Pr(>|t|)"] < 0.05,
+      nw.lower[
+        "BTC_Volatility",
+        "Pr(>|t|)"
+      ] < 0.05,
       "Yes",
       "No"
     ),
     ifelse(
-      nw.elevated["BTC_Volatility","Pr(>|t|)"] < 0.05,
+      nw.elevated[
+        "BTC_Volatility",
+        "Pr(>|t|)"
+      ] < 0.05,
       "Yes",
       "No"
     )
@@ -715,10 +739,16 @@ overall.summary <- data.frame(
 )
 
 overall.summary$Correlation <-
-  round(overall.summary$Correlation, 4)
+  round(
+    overall.summary$Correlation,
+    4
+  )
 
 overall.summary$NeweyWest_P_Value <-
-  signif(overall.summary$NeweyWest_P_Value, 4)
+  signif(
+    overall.summary$NeweyWest_P_Value,
+    4
+  )
 
 print(overall.summary)
 
@@ -728,33 +758,47 @@ print(overall.summary)
 ###############################################################
 
 #20 Define event windows
+
 events <- data.frame(
   
   Event = c(
-    "Russia-Ukraine Conflict",
-    "Israel-Hamas Conflict",
-    "Iran-Israel Conflict"
+    "Russia-Ukraine (Crimea Crisis)",
+    "Paris Attacks",
+    "Russia-Ukraine Invasion",
+    "Israel-Hamas War",
+    "US-Israel-Iran Conflict"
   ),
   
   Start_Date = as.Date(c(
+    "2014-02-13",
+    "2015-10-30",
     "2022-02-07",
     "2023-09-20",
-    "2025-02-17"
+    "2026-02-11"
   )),
   
   End_Date = as.Date(c(
+    "2014-03-25",
+    "2015-12-17",
     "2022-04-05",
     "2023-11-17",
-    "2026-04-19"
+    "2026-03-23"
   ))
   
 )
 
 print(events)
 
+# Note: These are GPR-derived statistical event windows and do not represent
+# the exact real-world start and end dates of each geopolitical event.
+
+# Note: The available sample begins in March 2014, so the Crimea Crisis
+# event window is partially truncated by the available data.
+
 
 #21 Split data into event windows
-ukraine <- subset(
+
+crimea <- subset(
   
   data,
   
@@ -763,7 +807,7 @@ ukraine <- subset(
   
 )
 
-hamas <- subset(
+paris <- subset(
   
   data,
   
@@ -772,7 +816,7 @@ hamas <- subset(
   
 )
 
-iran <- subset(
+ukraine <- subset(
   
   data,
   
@@ -781,56 +825,75 @@ iran <- subset(
   
 )
 
+hamas <- subset(
+  
+  data,
+  
+  Date >= events$Start_Date[4] &
+    Date <= events$End_Date[4]
+  
+)
 
-#22 Summary statistics by event
+iran <- subset(
+  
+  data,
+  
+  Date >= events$Start_Date[5] &
+    Date <= events$End_Date[5]
+  
+)
+
+
+#22 Summary statistics during major geopolitical events
+
 event.statistics <- data.frame(
   
   Event = c(
-    "Russia-Ukraine Conflict",
-    "Israel-Hamas Conflict",
-    "Iran-Israel Conflict"
+    "Russia-Ukraine (Crimea Crisis)",
+    "Paris Attacks",
+    "Russia-Ukraine Invasion",
+    "Israel-Hamas War",
+    "US-Israel-Iran Conflict"
   ),
   
   Sample_Size = c(
+    nrow(crimea),
+    nrow(paris),
     nrow(ukraine),
     nrow(hamas),
     nrow(iran)
   ),
   
   Mean_GPR = c(
+    mean(crimea$GPRD),
+    mean(paris$GPRD),
     mean(ukraine$GPRD),
     mean(hamas$GPRD),
     mean(iran$GPRD)
   ),
   
   SD_GPR = c(
+    sd(crimea$GPRD),
+    sd(paris$GPRD),
     sd(ukraine$GPRD),
     sd(hamas$GPRD),
     sd(iran$GPRD)
   ),
   
   Mean_BTC_Volatility = c(
+    mean(crimea$BTC_Volatility),
+    mean(paris$BTC_Volatility),
     mean(ukraine$BTC_Volatility),
     mean(hamas$BTC_Volatility),
     mean(iran$BTC_Volatility)
   ),
   
   SD_BTC_Volatility = c(
+    sd(crimea$BTC_Volatility),
+    sd(paris$BTC_Volatility),
     sd(ukraine$BTC_Volatility),
     sd(hamas$BTC_Volatility),
     sd(iran$BTC_Volatility)
-  ),
-  
-  Mean_J303_Volatility = c(
-    mean(ukraine$J303_Volatility),
-    mean(hamas$J303_Volatility),
-    mean(iran$J303_Volatility)
-  ),
-  
-  SD_J303_Volatility = c(
-    sd(ukraine$J303_Volatility),
-    sd(hamas$J303_Volatility),
-    sd(iran$J303_Volatility)
   )
   
 )
@@ -843,7 +906,24 @@ event.statistics[-1] <- round(
 print(event.statistics)
 
 
-#23 Correlation analysis
+#23 Correlation analysis during major geopolitical events
+
+cor.crimea <- cor.test(
+  
+  crimea$BTC_Volatility,
+  
+  crimea$J303_Volatility
+  
+)
+
+cor.paris <- cor.test(
+  
+  paris$BTC_Volatility,
+  
+  paris$J303_Volatility
+  
+)
+
 cor.ukraine <- cor.test(
   
   ukraine$BTC_Volatility,
@@ -868,6 +948,10 @@ cor.iran <- cor.test(
   
 )
 
+cor.crimea
+
+cor.paris
+
 cor.ukraine
 
 cor.hamas
@@ -875,28 +959,37 @@ cor.hamas
 cor.iran
 
 
-#24 Correlation summary table
-event.correlation <- data.frame(
+#24 Correlation summary table for major geopolitical events
+
+event.correlation.summary <- data.frame(
   
   Event = c(
-    "Russia-Ukraine Conflict",
-    "Israel-Hamas Conflict",
-    "Iran-Israel Conflict"
+    "Russia-Ukraine (Crimea Crisis)",
+    "Paris Attacks",
+    "Russia-Ukraine Invasion",
+    "Israel-Hamas War",
+    "US-Israel-Iran Conflict"
   ),
   
   Sample_Size = c(
+    nrow(crimea),
+    nrow(paris),
     nrow(ukraine),
     nrow(hamas),
     nrow(iran)
   ),
   
   Correlation = c(
+    unname(cor.crimea$estimate),
+    unname(cor.paris$estimate),
     unname(cor.ukraine$estimate),
     unname(cor.hamas$estimate),
     unname(cor.iran$estimate)
   ),
   
   Correlation_P_Value = c(
+    cor.crimea$p.value,
+    cor.paris$p.value,
     cor.ukraine$p.value,
     cor.hamas$p.value,
     cor.iran$p.value
@@ -904,15 +997,21 @@ event.correlation <- data.frame(
   
 )
 
-event.correlation$Correlation <-
-  round(event.correlation$Correlation, 4)
+event.correlation.summary$Correlation <-
+  round(
+    event.correlation.summary$Correlation,
+    4
+  )
 
-event.correlation$Correlation_P_Value <-
-  signif(event.correlation$Correlation_P_Value, 4)
+event.correlation.summary$Correlation_P_Value <-
+  signif(
+    event.correlation.summary$Correlation_P_Value,
+    4
+  )
 
-event.correlation$Significant <- ifelse(
+event.correlation.summary$Significant <- ifelse(
   
-  event.correlation$Correlation_P_Value < 0.05,
+  event.correlation.summary$Correlation_P_Value < 0.05,
   
   "Yes",
   
@@ -920,15 +1019,42 @@ event.correlation$Significant <- ifelse(
   
 )
 
-print(event.correlation)
+print(event.correlation.summary)
 
 
 #25 Event-specific regression models
 
-# Russia-Ukraine Conflict
+# Russia-Ukraine (Crimea Crisis)
+model.crimea <- lm(
+  
+  J303_Volatility ~
+    BTC_Volatility,
+  
+  data = crimea
+  
+)
+
+summary(model.crimea)
+
+
+# Paris Attacks
+model.paris <- lm(
+  
+  J303_Volatility ~
+    BTC_Volatility,
+  
+  data = paris
+  
+)
+
+summary(model.paris)
+
+
+# Russia-Ukraine Invasion
 model.ukraine <- lm(
   
-  J303_Volatility ~ BTC_Volatility,
+  J303_Volatility ~
+    BTC_Volatility,
   
   data = ukraine
   
@@ -937,10 +1063,11 @@ model.ukraine <- lm(
 summary(model.ukraine)
 
 
-# Israel-Hamas Conflict
+# Israel-Hamas War
 model.hamas <- lm(
   
-  J303_Volatility ~ BTC_Volatility,
+  J303_Volatility ~
+    BTC_Volatility,
   
   data = hamas
   
@@ -949,10 +1076,11 @@ model.hamas <- lm(
 summary(model.hamas)
 
 
-# Iran-Israel Conflict
+# US-Israel-Iran Conflict
 model.iran <- lm(
   
-  J303_Volatility ~ BTC_Volatility,
+  J303_Volatility ~
+    BTC_Volatility,
   
   data = iran
   
@@ -961,10 +1089,14 @@ model.iran <- lm(
 summary(model.iran)
 
 
-#26 Regression diagnostic tests
+#26 Event-specific regression diagnostics
 
 # Diagnostic plots
 par(mfrow = c(2,2))
+
+plot(model.crimea)
+
+plot(model.paris)
 
 plot(model.ukraine)
 
@@ -975,24 +1107,30 @@ plot(model.iran)
 par(mfrow = c(1,1))
 
 
-# Jarque-Bera tests
+# Jarque-Bera tests for residual normality
+jb.crimea <- jarque.bera.test(
+  residuals(model.crimea)
+)
+
+jb.paris <- jarque.bera.test(
+  residuals(model.paris)
+)
+
 jb.ukraine <- jarque.bera.test(
-  
   residuals(model.ukraine)
-  
 )
 
 jb.hamas <- jarque.bera.test(
-  
   residuals(model.hamas)
-  
 )
 
 jb.iran <- jarque.bera.test(
-  
   residuals(model.iran)
-  
 )
+
+jb.crimea
+
+jb.paris
 
 jb.ukraine
 
@@ -1001,7 +1139,15 @@ jb.hamas
 jb.iran
 
 
-# Durbin-Watson tests
+# Durbin-Watson tests for residual autocorrelation
+dw.crimea <- dwtest(
+  model.crimea
+)
+
+dw.paris <- dwtest(
+  model.paris
+)
+
 dw.ukraine <- dwtest(
   model.ukraine
 )
@@ -1014,6 +1160,10 @@ dw.iran <- dwtest(
   model.iran
 )
 
+dw.crimea
+
+dw.paris
+
 dw.ukraine
 
 dw.hamas
@@ -1021,7 +1171,15 @@ dw.hamas
 dw.iran
 
 
-# Breusch-Pagan tests
+# Breusch-Pagan tests for heteroskedasticity
+bp.crimea <- bptest(
+  model.crimea
+)
+
+bp.paris <- bptest(
+  model.paris
+)
+
 bp.ukraine <- bptest(
   model.ukraine
 )
@@ -1034,6 +1192,10 @@ bp.iran <- bptest(
   model.iran
 )
 
+bp.crimea
+
+bp.paris
+
 bp.ukraine
 
 bp.hamas
@@ -1041,7 +1203,30 @@ bp.hamas
 bp.iran
 
 
-# Newey-West robust inference
+#27 Newey-West robust inference for event-specific regressions
+
+nw.crimea <- coeftest(
+  
+  model.crimea,
+  
+  vcov = NeweyWest(
+    model.crimea,
+    prewhite = FALSE
+  )
+  
+)
+
+nw.paris <- coeftest(
+  
+  model.paris,
+  
+  vcov = NeweyWest(
+    model.paris,
+    prewhite = FALSE
+  )
+  
+)
+
 nw.ukraine <- coeftest(
   
   model.ukraine,
@@ -1075,6 +1260,10 @@ nw.iran <- coeftest(
   
 )
 
+nw.crimea
+
+nw.paris
+
 nw.ukraine
 
 nw.hamas
@@ -1082,253 +1271,301 @@ nw.hamas
 nw.iran
 
 
-#27 Regression summary table
-event.regression <- data.frame(
+#28 Event-specific regression summary table
+
+event.overall <- data.frame(
   
   Event = c(
-    "Russia-Ukraine Conflict",
-    "Israel-Hamas Conflict",
-    "Iran-Israel Conflict"
+    "Russia-Ukraine (Crimea Crisis)",
+    "Paris Attacks",
+    "Russia-Ukraine Invasion",
+    "Israel-Hamas War",
+    "US-Israel-Iran Conflict"
   ),
   
   Sample_Size = c(
+    nrow(crimea),
+    nrow(paris),
     nrow(ukraine),
     nrow(hamas),
     nrow(iran)
   ),
   
   Correlation = c(
+    unname(cor.crimea$estimate),
+    unname(cor.paris$estimate),
     unname(cor.ukraine$estimate),
     unname(cor.hamas$estimate),
     unname(cor.iran$estimate)
   ),
   
   BTC_Coefficient = c(
+    coef(model.crimea)[2],
+    coef(model.paris)[2],
     coef(model.ukraine)[2],
     coef(model.hamas)[2],
     coef(model.iran)[2]
   ),
   
   Adj_R2 = c(
+    summary(model.crimea)$adj.r.squared,
+    summary(model.paris)$adj.r.squared,
     summary(model.ukraine)$adj.r.squared,
     summary(model.hamas)$adj.r.squared,
     summary(model.iran)$adj.r.squared
   ),
   
   Residual_SE = c(
+    summary(model.crimea)$sigma,
+    summary(model.paris)$sigma,
     summary(model.ukraine)$sigma,
     summary(model.hamas)$sigma,
     summary(model.iran)$sigma
   ),
   
   NeweyWest_P_Value = c(
-    nw.ukraine["BTC_Volatility","Pr(>|t|)"],
-    nw.hamas["BTC_Volatility","Pr(>|t|)"],
-    nw.iran["BTC_Volatility","Pr(>|t|)"]
-  )
-  
-)
-
-event.regression$Correlation <-
-  round(event.regression$Correlation, 4)
-
-event.regression$BTC_Coefficient <-
-  signif(event.regression$BTC_Coefficient, 4)
-
-event.regression$Adj_R2 <-
-  round(event.regression$Adj_R2, 4)
-
-event.regression$Residual_SE <-
-  round(event.regression$Residual_SE, 5)
-
-event.regression$NeweyWest_P_Value <-
-  signif(event.regression$NeweyWest_P_Value, 4)
-
-event.regression$Significant <- ifelse(
-  
-  event.regression$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(event.regression)
-
-
-#28 Fisher r-to-z comparison tests
-
-compare.correlations <- function(
-    
-  r1,
-  n1,
-  r2,
-  n2
-  
-){
-  
-  z1 <- atanh(r1)
-  
-  z2 <- atanh(r2)
-  
-  se <- sqrt(
-    1 / (n1 - 3) +
-      1 / (n2 - 3)
-  )
-  
-  z <- (z1 - z2) / se
-  
-  p <- 2 * (
-    1 -
-      pnorm(abs(z))
-  )
-  
-  c(
-    Z_Statistic = z,
-    P_Value = p
-  )
-  
-}
-
-
-ukraine.hamas <- compare.correlations(
-  
-  cor.ukraine$estimate,
-  nrow(ukraine),
-  
-  cor.hamas$estimate,
-  nrow(hamas)
-  
-)
-
-ukraine.iran <- compare.correlations(
-  
-  cor.ukraine$estimate,
-  nrow(ukraine),
-  
-  cor.iran$estimate,
-  nrow(iran)
-  
-)
-
-hamas.iran <- compare.correlations(
-  
-  cor.hamas$estimate,
-  nrow(hamas),
-  
-  cor.iran$estimate,
-  nrow(iran)
-  
-)
-
-comparison.summary <- data.frame(
-  
-  Comparison = c(
-    
-    "Russia-Ukraine Conflict vs Israel-Hamas Conflict",
-    
-    "Russia-Ukraine Conflict vs Iran-Israel Conflict",
-    
-    "Israel-Hamas Conflict vs Iran-Israel Conflict"
-    
-  ),
-  
-  Z_Statistic = c(
-    
-    ukraine.hamas[1],
-    
-    ukraine.iran[1],
-    
-    hamas.iran[1]
-    
-  ),
-  
-  P_Value = c(
-    
-    ukraine.hamas[2],
-    
-    ukraine.iran[2],
-    
-    hamas.iran[2]
-    
-  )
-  
-)
-
-comparison.summary$Z_Statistic <-
-  round(
-    comparison.summary$Z_Statistic,
-    4
-  )
-
-comparison.summary$P_Value <-
-  signif(
-    comparison.summary$P_Value,
-    4
-  )
-
-comparison.summary$Significant <- ifelse(
-  
-  comparison.summary$P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(comparison.summary)
-
-
-#29 Overall event summary
-event.overall <- data.frame(
-  
-  Event = c(
-    "Russia-Ukraine Conflict",
-    "Israel-Hamas Conflict",
-    "Iran-Israel Conflict"
-  ),
-  
-  Correlation = c(
-    unname(cor.ukraine$estimate),
-    unname(cor.hamas$estimate),
-    unname(cor.iran$estimate)
-  ),
-  
-  NeweyWest_P_Value = c(
-    nw.ukraine["BTC_Volatility","Pr(>|t|)"],
-    nw.hamas["BTC_Volatility","Pr(>|t|)"],
-    nw.iran["BTC_Volatility","Pr(>|t|)"]
-  ),
-  
-  Significant = c(
-    ifelse(
-      nw.ukraine["BTC_Volatility","Pr(>|t|)"] < 0.05,
-      "Yes",
-      "No"
-    ),
-    ifelse(
-      nw.hamas["BTC_Volatility","Pr(>|t|)"] < 0.05,
-      "Yes",
-      "No"
-    ),
-    ifelse(
-      nw.iran["BTC_Volatility","Pr(>|t|)"] < 0.05,
-      "Yes",
-      "No"
-    )
+    nw.crimea[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.paris[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.ukraine[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.hamas[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.iran[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ]
   )
   
 )
 
 event.overall$Correlation <-
-  round(event.overall$Correlation,4)
+  round(
+    event.overall$Correlation,
+    4
+  )
+
+event.overall$BTC_Coefficient <-
+  signif(
+    event.overall$BTC_Coefficient,
+    4
+  )
+
+event.overall$Adj_R2 <-
+  round(
+    event.overall$Adj_R2,
+    4
+  )
+
+event.overall$Residual_SE <-
+  signif(
+    event.overall$Residual_SE,
+    4
+  )
 
 event.overall$NeweyWest_P_Value <-
-  signif(event.overall$NeweyWest_P_Value,4)
+  signif(
+    event.overall$NeweyWest_P_Value,
+    4
+  )
+
+event.overall$Significant <- ifelse(
+  
+  event.overall$NeweyWest_P_Value < 0.05,
+  
+  "Yes",
+  
+  "No"
+  
+)
 
 print(event.overall)
+
+
+#29 Pairwise Fisher r-to-z tests comparing event correlations
+
+r.crimea <- cor.crimea$estimate
+
+r.paris <- cor.paris$estimate
+
+r.ukraine <- cor.ukraine$estimate
+
+r.hamas <- cor.hamas$estimate
+
+r.iran <- cor.iran$estimate
+
+
+z.crimea.paris <- (
+  atanh(r.crimea) -
+    atanh(r.paris)
+) /
+  sqrt(
+    1 / (nrow(crimea) - 3) +
+      1 / (nrow(paris) - 3)
+  )
+
+z.crimea.ukraine <- (
+  atanh(r.crimea) -
+    atanh(r.ukraine)
+) /
+  sqrt(
+    1 / (nrow(crimea) - 3) +
+      1 / (nrow(ukraine) - 3)
+  )
+
+z.crimea.hamas <- (
+  atanh(r.crimea) -
+    atanh(r.hamas)
+) /
+  sqrt(
+    1 / (nrow(crimea) - 3) +
+      1 / (nrow(hamas) - 3)
+  )
+
+z.crimea.iran <- (
+  atanh(r.crimea) -
+    atanh(r.iran)
+) /
+  sqrt(
+    1 / (nrow(crimea) - 3) +
+      1 / (nrow(iran) - 3)
+  )
+
+z.paris.ukraine <- (
+  atanh(r.paris) -
+    atanh(r.ukraine)
+) /
+  sqrt(
+    1 / (nrow(paris) - 3) +
+      1 / (nrow(ukraine) - 3)
+  )
+
+z.paris.hamas <- (
+  atanh(r.paris) -
+    atanh(r.hamas)
+) /
+  sqrt(
+    1 / (nrow(paris) - 3) +
+      1 / (nrow(hamas) - 3)
+  )
+
+z.paris.iran <- (
+  atanh(r.paris) -
+    atanh(r.iran)
+) /
+  sqrt(
+    1 / (nrow(paris) - 3) +
+      1 / (nrow(iran) - 3)
+  )
+
+z.ukraine.hamas <- (
+  atanh(r.ukraine) -
+    atanh(r.hamas)
+) /
+  sqrt(
+    1 / (nrow(ukraine) - 3) +
+      1 / (nrow(hamas) - 3)
+  )
+
+z.ukraine.iran <- (
+  atanh(r.ukraine) -
+    atanh(r.iran)
+) /
+  sqrt(
+    1 / (nrow(ukraine) - 3) +
+      1 / (nrow(iran) - 3)
+  )
+
+z.hamas.iran <- (
+  atanh(r.hamas) -
+    atanh(r.iran)
+) /
+  sqrt(
+    1 / (nrow(hamas) - 3) +
+      1 / (nrow(iran) - 3)
+  )
+
+
+pairwise.z <- data.frame(
+  
+  Comparison = c(
+    "Crimea vs Paris",
+    "Crimea vs Ukraine",
+    "Crimea vs Hamas",
+    "Crimea vs Iran",
+    "Paris vs Ukraine",
+    "Paris vs Hamas",
+    "Paris vs Iran",
+    "Ukraine vs Hamas",
+    "Ukraine vs Iran",
+    "Hamas vs Iran"
+  ),
+  
+  Z_Statistic = c(
+    z.crimea.paris,
+    z.crimea.ukraine,
+    z.crimea.hamas,
+    z.crimea.iran,
+    z.paris.ukraine,
+    z.paris.hamas,
+    z.paris.iran,
+    z.ukraine.hamas,
+    z.ukraine.iran,
+    z.hamas.iran
+  )
+  
+)
+
+pairwise.z$P_Value <- 2 * (
+  1 -
+    pnorm(
+      abs(pairwise.z$Z_Statistic)
+    )
+)
+
+pairwise.z$Z_Statistic <-
+  round(
+    pairwise.z$Z_Statistic,
+    4
+  )
+
+pairwise.z$P_Value <-
+  signif(
+    pairwise.z$P_Value,
+    4
+  )
+
+pairwise.z$Significant <- ifelse(
+  
+  pairwise.z$P_Value < 0.05,
+  
+  "Yes",
+  
+  "No"
+  
+)
+
+print(pairwise.z)
+
+# Note: Pairwise Fisher r-to-z tests are treated as exploratory because
+# event-window observations are time-series observations and may not be
+# independent. The event regressions therefore use Newey-West robust inference
+# as the primary basis for statistical significance.
+
+# Note: Ten pairwise correlation comparisons are conducted, creating a
+# multiple-comparison issue. The treatment of these tests should be discussed
+# with the thesis partner and supervisor, including whether to retain the
+# unadjusted results, apply a multiple-comparison adjustment, or present them
+# as exploratory results.
 
 
 ###############################################################
@@ -1336,6 +1573,7 @@ print(event.overall)
 ###############################################################
 
 #30 Correlation comparison plot
+
 comparison.plot <- data.frame(
   
   Analysis = factor(
@@ -1344,18 +1582,22 @@ comparison.plot <- data.frame(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine",
+      "Russia-\nUkraine\n(Crimea)",
+      "Paris\nAttacks",
+      "Russia-\nUkraine\nInvasion",
       "Israel-\nHamas",
-      "Iran-\nIsrael"
+      "US-Israel-\nIran"
     ),
     
     levels = c(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine",
+      "Russia-\nUkraine\n(Crimea)",
+      "Paris\nAttacks",
+      "Russia-\nUkraine\nInvasion",
       "Israel-\nHamas",
-      "Iran-\nIsrael"
+      "US-Israel-\nIran"
     )
     
   ),
@@ -1367,6 +1609,10 @@ comparison.plot <- data.frame(
     cor.lower$estimate,
     
     cor.elevated$estimate,
+    
+    cor.crimea$estimate,
+    
+    cor.paris$estimate,
     
     cor.ukraine$estimate,
     
@@ -1383,6 +1629,10 @@ comparison.plot <- data.frame(
     "Regime",
     
     "Regime",
+    
+    "Conflict",
+    
+    "Conflict",
     
     "Conflict",
     
@@ -1414,7 +1664,7 @@ ggplot(
   ) +
   
   coord_cartesian(
-    ylim = c(-0.10, 1.00)
+    ylim = c(-1, 1)
   ) +
   
   theme_minimal() +
@@ -1436,8 +1686,10 @@ ggplot(
     ),
     
     axis.text.x = element_text(
-      angle = 25,
-      hjust = 1
+      angle = 45,
+      hjust = 1,
+      vjust = 1,
+      size = 10
     ),
     
     legend.title = element_text(
@@ -1446,19 +1698,44 @@ ggplot(
     
     legend.text = element_text(
       size = 10
+    ),
+    
+    plot.margin = margin(
+      5.5,
+      5.5,
+      30,
+      5.5
     )
     
   ) +
   
   labs(
-    title = "Correlation Between Bitcoin and J303 Volatility",
+    
+    title = "Correlation Between Bitcoin and J303 Conditional Volatility",
+    
     x = "",
+    
     y = "Pearson Correlation",
+    
     fill = "Analysis"
+    
+  ) +
+  
+  scale_x_discrete(
+    labels = c(
+      "Overall" = "Overall",
+      "Lower GPR" = "Lower\nGPR",
+      "Elevated GPR" = "Elevated\nGPR",
+      "Russia-Ukraine (Crimea)" = "Russia-Ukraine\n(Crimea)",
+      "Paris Attack" = "Paris\nAttack",
+      "Russia-Ukraine Invasion" = "Russia-Ukraine\nInvasion",
+      "Israel-Hamas" = "Israel-\nHamas",
+      "US-Israel-Iran" = "US-Israel-\nIran"
+    )
   )
 
-
 #31 Regression coefficient comparison plot
+
 coefficient.plot <- data.frame(
   
   Analysis = factor(
@@ -1467,18 +1744,22 @@ coefficient.plot <- data.frame(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine",
+      "Russia-\nUkraine\n(Crimea)",
+      "Paris\nAttacks",
+      "Russia-\nUkraine\nInvasion",
       "Israel-\nHamas",
-      "Iran-\nIsrael"
+      "US-Israel-\nIran"
     ),
     
     levels = c(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine",
+      "Russia-\nUkraine\n(Crimea)",
+      "Paris\nAttacks",
+      "Russia-\nUkraine\nInvasion",
       "Israel-\nHamas",
-      "Iran-\nIsrael"
+      "US-Israel-\nIran"
     )
     
   ),
@@ -1490,6 +1771,10 @@ coefficient.plot <- data.frame(
     coef(model.lower)[2],
     
     coef(model.elevated)[2],
+    
+    coef(model.crimea)[2],
+    
+    coef(model.paris)[2],
     
     coef(model.ukraine)[2],
     
@@ -1511,6 +1796,10 @@ coefficient.plot <- data.frame(
     
     "Conflict",
     
+    "Conflict",
+    
+    "Conflict",
+    
     "Conflict"
     
   )
@@ -1523,13 +1812,9 @@ ggplot(
   coefficient.plot,
   
   aes(
-    
     x = Analysis,
-    
     y = BTC_Coefficient,
-    
     fill = Group
-    
   )
   
 ) +
@@ -1562,8 +1847,10 @@ ggplot(
     ),
     
     axis.text.x = element_text(
-      angle = 25,
-      hjust = 1
+      angle = 45,
+      hjust = 1,
+      vjust = 1,
+      size = 10
     ),
     
     legend.title = element_text(
@@ -1572,13 +1859,20 @@ ggplot(
     
     legend.text = element_text(
       size = 10
+    ),
+    
+    plot.margin = margin(
+      5.5,
+      5.5,
+      30,
+      5.5
     )
     
   ) +
   
   labs(
     
-    title = "Estimated Effect of Bitcoin Volatility on J303 Volatility",
+    title = "Estimated Relationship Between Bitcoin and J303 Conditional Volatility",
     
     x = "",
     
@@ -1586,10 +1880,24 @@ ggplot(
     
     fill = "Analysis"
     
+  ) +
+  
+  scale_x_discrete(
+    labels = c(
+      "Overall" = "Overall",
+      "Lower GPR" = "Lower\nGPR",
+      "Elevated GPR" = "Elevated\nGPR",
+      "Russia-Ukraine (Crimea)" = "Russia-Ukraine\n(Crimea)",
+      "Paris Attack" = "Paris\nAttack",
+      "Russia-Ukraine Invasion" = "Russia-Ukraine\nInvasion",
+      "Israel-Hamas" = "Israel-\nHamas",
+      "US-Israel-Iran" = "US-Israel-\nIran"
+    )
   )
 
 
 #32 Overall empirical summary
+
 overall.results <- data.frame(
   
   Analysis = c(
@@ -1600,11 +1908,15 @@ overall.results <- data.frame(
     
     "Elevated GPR",
     
-    "Russia-Ukraine",
+    "Russia-Ukraine (Crimea Crisis)",
     
-    "Israel-Hamas",
+    "Paris Attacks",
     
-    "Iran-Israel"
+    "Russia-Ukraine Invasion",
+    
+    "Israel-Hamas War",
+    
+    "US-Israel-Iran Conflict"
     
   ),
   
@@ -1615,6 +1927,10 @@ overall.results <- data.frame(
     unname(cor.lower$estimate),
     
     unname(cor.elevated$estimate),
+    
+    unname(cor.crimea$estimate),
+    
+    unname(cor.paris$estimate),
     
     unname(cor.ukraine$estimate),
     
@@ -1632,6 +1948,10 @@ overall.results <- data.frame(
     
     coef(model.elevated)[2],
     
+    coef(model.crimea)[2],
+    
+    coef(model.paris)[2],
+    
     coef(model.ukraine)[2],
     
     coef(model.hamas)[2],
@@ -1648,6 +1968,10 @@ overall.results <- data.frame(
     
     summary(model.elevated)$adj.r.squared,
     
+    summary(model.crimea)$adj.r.squared,
+    
+    summary(model.paris)$adj.r.squared,
+    
     summary(model.ukraine)$adj.r.squared,
     
     summary(model.hamas)$adj.r.squared,
@@ -1658,33 +1982,73 @@ overall.results <- data.frame(
   
   NeweyWest_P_Value = c(
     
-    nw.overall["BTC_Volatility","Pr(>|t|)"],
+    nw.overall[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
     
-    nw.lower["BTC_Volatility","Pr(>|t|)"],
+    nw.lower[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
     
-    nw.elevated["BTC_Volatility","Pr(>|t|)"],
+    nw.elevated[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
     
-    nw.ukraine["BTC_Volatility","Pr(>|t|)"],
+    nw.crimea[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
     
-    nw.hamas["BTC_Volatility","Pr(>|t|)"],
+    nw.paris[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
     
-    nw.iran["BTC_Volatility","Pr(>|t|)"]
+    nw.ukraine[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    
+    nw.hamas[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    
+    nw.iran[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ]
     
   )
   
 )
 
 overall.results$Correlation <-
-  round(overall.results$Correlation,4)
+  round(
+    overall.results$Correlation,
+    4
+  )
 
 overall.results$BTC_Volatility_Coefficient <-
-  signif(overall.results$BTC_Volatility_Coefficient,4)
+  signif(
+    overall.results$BTC_Volatility_Coefficient,
+    4
+  )
 
 overall.results$Adj_R2 <-
-  round(overall.results$Adj_R2,4)
+  round(
+    overall.results$Adj_R2,
+    4
+  )
 
 overall.results$NeweyWest_P_Value <-
-  signif(overall.results$NeweyWest_P_Value,4)
+  signif(
+    overall.results$NeweyWest_P_Value,
+    4
+  )
 
 overall.results$Significant <- ifelse(
   
@@ -1697,5 +2061,4 @@ overall.results$Significant <- ifelse(
 )
 
 print(overall.results)
-
 

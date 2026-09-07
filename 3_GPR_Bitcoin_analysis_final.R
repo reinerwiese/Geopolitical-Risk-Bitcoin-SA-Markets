@@ -489,6 +489,7 @@ nw.model3
 ###############################################################
 
 # 20. Regression summary table
+
 regression.summary <- data.frame(
   
   Model = c(
@@ -525,17 +526,49 @@ regression.summary <- data.frame(
     summary(volatility.model3)$adj.r.squared
   ),
   
-  Final_GPR_pvalue = c(
+  GPR_NW_pvalue = c(
     nw.model1["GPRD","Pr(>|t|)"],
     nw.model2["GPRD","Pr(>|t|)"],
     nw.model3["GPRD","Pr(>|t|)"]
+  ),
+  
+  GPR_Lag1_NW_pvalue = c(
+    NA,
+    nw.model2["GPR_Lag1","Pr(>|t|)"],
+    nw.model3["GPR_Lag1","Pr(>|t|)"]
+  ),
+  
+  GPR_Lag2_NW_pvalue = c(
+    NA,
+    NA,
+    nw.model3["GPR_Lag2","Pr(>|t|)"]
   )
   
 )
 
-regression.summary$Significant_5pct <- ifelse(
+regression.summary$GPR_Significant_5pct <- ifelse(
   
-  regression.summary$Final_GPR_pvalue < 0.05,
+  regression.summary$GPR_NW_pvalue < 0.05,
+  
+  "Yes",
+  
+  "No"
+  
+)
+
+regression.summary$Lag1_Significant_5pct <- ifelse(
+  
+  regression.summary$GPR_Lag1_NW_pvalue < 0.05,
+  
+  "Yes",
+  
+  "No"
+  
+)
+
+regression.summary$Lag2_Significant_5pct <- ifelse(
+  
+  regression.summary$GPR_Lag2_NW_pvalue < 0.05,
   
   "Yes",
   
@@ -567,14 +600,25 @@ regression.summary$Adj_R2 <-
     4
   )
 
-regression.summary$Final_GPR_pvalue <-
+regression.summary$GPR_NW_pvalue <-
   signif(
-    regression.summary$Final_GPR_pvalue,
+    regression.summary$GPR_NW_pvalue,
+    4
+  )
+
+regression.summary$GPR_Lag1_NW_pvalue <-
+  signif(
+    regression.summary$GPR_Lag1_NW_pvalue,
+    4
+  )
+
+regression.summary$GPR_Lag2_NW_pvalue <-
+  signif(
+    regression.summary$GPR_Lag2_NW_pvalue,
     4
   )
 
 regression.summary
-
 
 ###############################################################
 # Section G: Overall Summary
@@ -652,13 +696,3 @@ overall.summary$Final_GPR_pvalue <-
   )
 
 overall.summary
-
-
-
-
-
-
-
-  
-
-

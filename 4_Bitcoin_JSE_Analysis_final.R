@@ -437,6 +437,11 @@ regression.summary <- data.frame(
   Final_BTC_pvalue = c(
     nw.j303.btc["BTC_Volatility","Pr(>|t|)"],
     nw.j303.btc.gpr["BTC_Volatility","Pr(>|t|)"]
+  ),
+  
+  Final_GPR_pvalue = c(
+    NA,
+    nw.j303.btc.gpr["GPRD","Pr(>|t|)"]
   )
   
 )
@@ -471,6 +476,9 @@ regression.summary$OLS_BTC_pvalue <-
 
 regression.summary$Final_BTC_pvalue <-
   signif(regression.summary$Final_BTC_pvalue, 4)
+
+regression.summary$Final_GPR_pvalue <-
+  signif(regression.summary$Final_GPR_pvalue, 4)
 
 regression.summary
 

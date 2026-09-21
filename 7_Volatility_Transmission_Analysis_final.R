@@ -1652,8 +1652,7 @@ ggplot(
 ) +
   
   geom_col(
-    width = 0.6,
-    colour = "black"
+    width = 0.6
   ) +
   
   geom_hline(
@@ -1665,17 +1664,10 @@ ggplot(
     ylim = c(-1, 1)
   ) +
   
-  scale_fill_manual(
-    values = c(
-      "Overall" = "grey20",
-      "Regime" = "grey55",
-      "Conflict" = "grey80"
-    )
-  ) +
-  
   theme_minimal() +
   
   theme(
+    
     plot.title = element_text(
       size = 14,
       face = "bold",
@@ -1703,14 +1695,27 @@ ggplot(
     
     legend.text = element_text(
       size = 10
+    ),
+    
+    plot.margin = margin(
+      5.5,
+      5.5,
+      30,
+      5.5
     )
+    
   ) +
   
   labs(
-    title = "Bitcoin–J303 Conditional Volatility Correlations",
+    
+    title = "Correlation Between Bitcoin and J303 Conditional Volatility",
+    
     x = "",
+    
     y = "Pearson Correlation",
+    
     fill = "Analysis"
+    
   ) +
   
   scale_x_discrete(
@@ -1800,17 +1805,19 @@ coefficient.plot <- data.frame(
 
 
 ggplot(
+  
   coefficient.plot,
+  
   aes(
     x = Analysis,
     y = BTC_Coefficient,
     fill = Group
   )
+  
 ) +
   
   geom_col(
-    width = 0.6,
-    colour = "black"
+    width = 0.6
   ) +
   
   geom_hline(
@@ -1818,17 +1825,10 @@ ggplot(
     linetype = "dashed"
   ) +
   
-  scale_fill_manual(
-    values = c(
-      "Overall" = "grey20",
-      "Regime" = "grey55",
-      "Conflict" = "grey80"
-    )
-  ) +
-  
   theme_minimal() +
   
   theme(
+    
     plot.title = element_text(
       size = 14,
       face = "bold",
@@ -1856,14 +1856,27 @@ ggplot(
     
     legend.text = element_text(
       size = 10
+    ),
+    
+    plot.margin = margin(
+      5.5,
+      5.5,
+      30,
+      5.5
     )
+    
   ) +
   
   labs(
-    title = "Bitcoin–J303 Volatility Regression Coefficients",
+    
+    title = "Estimated Relationship Between Bitcoin and J303 Conditional Volatility",
+    
     x = "",
+    
     y = "Regression Coefficient",
+    
     fill = "Analysis"
+    
   ) +
   
   scale_x_discrete(

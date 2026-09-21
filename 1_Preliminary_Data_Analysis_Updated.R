@@ -16,8 +16,12 @@ data <- read_excel(
 
 # 3. Data Preparation
 data <- na.omit(data)
+
 btc <- data$BTC_log_returns
 J303 <- data$Index_log_returns
+GPRD <- data$GPRD
+GPRD_ACT <- data$GPRD_ACT
+GPRD_THREAT <- data$GPRD_THREAT
 
 
 # 4. Descriptive Statistics
@@ -42,11 +46,23 @@ BTC_Stats <- descriptive_statistics(btc)
 
 J303_Stats <- descriptive_statistics(J303)
 
+GPRD_Stats <- descriptive_statistics(GPRD)
+
+GPRD_ACT_Stats <- descriptive_statistics(GPRD_ACT)
+
+GPRD_THREAT_Stats <- descriptive_statistics(GPRD_THREAT)
+
 statistics <- rbind(
   
   Bitcoin = BTC_Stats,
   
-  J303 = J303_Stats
+  J303 = J303_Stats,
+  
+  GPRD = GPRD_Stats,
+  
+  GPRD_ACT = GPRD_ACT_Stats,
+  
+  GPRD_THREAT = GPRD_THREAT_Stats
   
 )
 
@@ -54,6 +70,7 @@ print(round(statistics, 4))
 
 
 # 5. Time Series Plots
+
 ggplot(data,
        aes(Date, BTC_log_returns)) +
   
@@ -87,9 +104,35 @@ ggplot(data,
   
   labs(title = "Geopolitical Risk Index",
        x = "Date",
-       y = "GPR")
+       y = "GPRD")
+
+
+ggplot(data,
+       aes(Date, GPRD_ACT)) +
+  
+  geom_line() +
+  
+  theme_minimal() +
+  
+  labs(title = "Geopolitical Risk: Acts",
+       x = "Date",
+       y = "GPRD_ACT")
+
+
+ggplot(data,
+       aes(Date, GPRD_THREAT)) +
+  
+  geom_line() +
+  
+  theme_minimal() +
+  
+  labs(title = "Geopolitical Risk: Threats",
+       x = "Date",
+       y = "GPRD_THREAT")
+
 
 # 6. Return Distributions
+
 ggplot(data,
        aes(BTC_log_returns)) +
   
@@ -125,6 +168,7 @@ ggplot(data,
 
 
 # 7. QQ Plots
+
 qqnorm(btc,
        main = "QQ Plot: Bitcoin Returns")
 
@@ -140,6 +184,7 @@ qqline(J303,
 
 
 # 8. Boxplots
+
 boxplot(btc,
         main = "Bitcoin Returns",
         ylab = "Log Returns")
@@ -151,18 +196,21 @@ boxplot(J303,
 
 
 # 9. Stationarity Tests
+
 adf.test(btc)
 
 adf.test(J303)
 
 
 # 10. Normality Tests
+
 jarque.bera.test(btc)
 
 jarque.bera.test(J303)
 
 
 # 11. Ljung-Box Tests
+
 # Test for autocorrelation in returns
 
 Box.test(btc,
@@ -187,11 +235,44 @@ Box.test(J303^2,
 
 
 # 12. ARCH Test
+
 # Significant ARCH effects indicate time-varying volatility
 # and justify the estimation of GARCH-family models.
 
-ArchTest(btc, lags = 12)
+ArchTest(btc,
+         lags = 12)
 
-ArchTest(J303, lags = 12)
+ArchTest(J303,
+         lags = 12)
+
+
+# 13. Weekday Return Check
+
+weekday_summary <- data.frame(
+  Day = weekdays(data$Date),
+  BTC = data$BTC_log_returns,
+  J303 = data$Index_log_returns
+)
+
+weekday_summary$Day <- factor(
+  weekday_summary$Day,
+  levels = c("Monday",
+             "Tuesday",
+             "Wednesday",
+             "Thursday",
+             "Friday")
+)
+
+# Bitcoin return standard deviation by weekday
+
+aggregate(BTC ~ Day,
+          data = weekday_summary,
+          FUN = function(x) sd(x, na.rm = TRUE))
+
+# J303 return standard deviation by weekday
+
+aggregate(J303 ~ Day,
+          data = weekday_summary,
+          FUN = function(x) sd(x, na.rm = TRUE))
 
 

@@ -792,9 +792,6 @@ print(events)
 # Note: These are GPR-derived statistical event windows and do not represent
 # the exact real-world start and end dates of each geopolitical event.
 
-# Note: The available sample begins in March 2014, so the Crimea Crisis
-# event window is partially truncated by the available data.
-
 
 #21 Split data into event windows
 

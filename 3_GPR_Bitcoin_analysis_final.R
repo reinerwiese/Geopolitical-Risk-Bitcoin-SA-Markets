@@ -8,7 +8,7 @@ library(tseries)
 
 
 # 2. Create Lagged GPR Variables
-data <- data %>%
+data <- data0 %>%
   
   mutate(
     

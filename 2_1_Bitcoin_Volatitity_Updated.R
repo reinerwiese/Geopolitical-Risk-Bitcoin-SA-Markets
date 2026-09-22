@@ -7,13 +7,7 @@ library(FinTS)
 
 # 2. Import Data
 
-data <- read_excel(
-  "Thesis_Data.xlsx",
-  sheet = "Data",
-  na="NA"
-)
-
-data <- na.omit(data)
+data <- na.omit(data0)
 
 btc <- data$BTC_log_returns
 

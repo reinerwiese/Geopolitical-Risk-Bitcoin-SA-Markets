@@ -5,18 +5,8 @@ library(moments)
 library(tseries)
 library(FinTS)
 
-
-# 2. Import Data
-data <- read_excel(
-  "Thesis_Data.xlsx",
-  sheet = "Data",
-  na="NA"
-)
-
-
-
-# 3. Data Preparation
-data <- na.omit(data)
+# 2. Data Preparation
+data <- na.omit(data0)
 
 btc <- data$BTC_log_returns
 J303 <- data$Index_log_returns
@@ -25,7 +15,7 @@ GPRD_ACT <- data$GPRD_ACT
 GPRD_THREAT <- data$GPRD_THREAT
 
 
-# 4. Descriptive Statistics
+# 3. Descriptive Statistics
 descriptive_statistics <- function(x){
   
   data.frame(
@@ -70,7 +60,7 @@ statistics <- rbind(
 print(round(statistics, 4))
 
 
-# 5. Time Series Plots
+# 4. Time Series Plots
 
 ggplot(data,
        aes(Date, BTC_log_returns)) +
@@ -132,7 +122,7 @@ ggplot(data,
        y = "GPRD_THREAT")
 
 
-# 6. Return Distributions
+# 5. Return Distributions
 
 ggplot(data,
        aes(BTC_log_returns)) +
@@ -168,7 +158,7 @@ ggplot(data,
        y = "Density")
 
 
-# 7. QQ Plots
+# 6. QQ Plots
 
 qqnorm(btc,
        main = "QQ Plot: Bitcoin Returns")
@@ -184,7 +174,7 @@ qqline(J303,
        col = "red")
 
 
-# 8. Boxplots
+# 7. Boxplots
 
 boxplot(btc,
         main = "Bitcoin Returns",
@@ -196,21 +186,21 @@ boxplot(J303,
         ylab = "Log Returns")
 
 
-# 9. Stationarity Tests
+# 8. Stationarity Tests
 
 adf.test(btc)
 
 adf.test(J303)
 
 
-# 10. Normality Tests
+# 9. Normality Tests
 
 jarque.bera.test(btc)
 
 jarque.bera.test(J303)
 
 
-# 11. Ljung-Box Tests
+# 10. Ljung-Box Tests
 
 # Test for autocorrelation in returns
 
@@ -235,7 +225,7 @@ Box.test(J303^2,
          type = "Ljung-Box")
 
 
-# 12. ARCH Test
+# 11. ARCH Test
 
 # Significant ARCH effects indicate time-varying volatility
 # and justify the estimation of GARCH-family models.
@@ -247,7 +237,7 @@ ArchTest(J303,
          lags = 12)
 
 
-# 13. Weekday Return Check
+# 12. Weekday Return Check
 
 weekday_summary <- data.frame(
   Day = weekdays(data$Date),

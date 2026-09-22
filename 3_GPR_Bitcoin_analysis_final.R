@@ -1,6 +1,4 @@
 # 1. Load required packages
-library(readxl)
-library(rugarch)
 library(dplyr)
 library(ggplot2)
 library(lmtest)
@@ -9,48 +7,7 @@ library(sandwich)
 library(tseries)
 
 
-# 2. Import data
-data <- read_excel(
-  "Thesis_Data.xlsx",
-  sheet = "Data",
-  na = "NA"
-)
-
-data <- na.omit(data)
-
-
-# 3. Estimate Bitcoin EGARCH model
-spec.egarch <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-fit.egarch <- ugarchfit(
-  
-  spec = spec.egarch,
-  data = data$BTC_log_returns
-  
-)
-
-
-# 4. Extract Bitcoin Conditional Volatility
-data$BTC_Volatility <- as.numeric(
-  sigma(fit.egarch)
-)
-
-
-# 5. Create Lagged GPR Variables
+# 2. Create Lagged GPR Variables
 data <- data %>%
   
   mutate(
@@ -68,36 +25,8 @@ data <- na.omit(data)
 # Section A: Exploratory Analysis
 ###############################################################
 
-# 6. Exploratory plots
+# 3. Bitcoin Conditional Volatility vs Geopolitical Risk
 
-# Bitcoin Returns vs Geopolitical Risk
-ggplot(
-  data,
-  aes(
-    x = GPRD,
-    y = BTC_log_returns
-  )
-) +
-  
-  geom_point(
-    alpha = 0.6
-  ) +
-  
-  geom_smooth(
-    method = "lm",
-    se = TRUE
-  ) +
-  
-  theme_minimal() +
-  
-  labs(
-    title = "Bitcoin Returns vs Geopolitical Risk",
-    x = "Geopolitical Risk Index",
-    y = "Bitcoin Log Returns"
-  )
-
-
-# Bitcoin Conditional Volatility vs Geopolitical Risk
 ggplot(
   data,
   aes(
@@ -129,7 +58,8 @@ ggplot(
   )
 
 
-# 7. Correlation analysis
+# 4. Correlation analysis
+
 volatility.cor <- cor.test(
   
   data$BTC_Volatility,
@@ -143,7 +73,8 @@ volatility.cor <- cor.test(
 volatility.cor
 
 
-# 8. Correlation summary table
+# 5. Correlation summary table
+
 correlation.summary <- data.frame(
   
   Relationship = "Bitcoin Volatility vs GPR",
@@ -175,7 +106,7 @@ correlation.summary
 # Section B: Volatility Regression Analysis
 ###############################################################
 
-# 9. Estimate volatility regression models
+# 6. Estimate volatility regression models
 
 # Volatility Model 1: Contemporaneous GPR
 volatility.model1 <- lm(
@@ -203,7 +134,7 @@ volatility.model2 <- lm(
 )
 
 
-# Volatility Model 3: Contemporaneous GPR + 2-day lags
+# Volatility Model 3: Contemporaneous GPR + 1-day and 2-day lags
 volatility.model3 <- lm(
   
   BTC_Volatility ~
@@ -219,7 +150,8 @@ volatility.model3 <- lm(
 )
 
 
-# 10. Model summaries
+# 7. Model summaries
+
 summary(volatility.model1)
 
 summary(volatility.model2)
@@ -227,7 +159,8 @@ summary(volatility.model2)
 summary(volatility.model3)
 
 
-# 11. 95% confidence intervals
+# 8. 95% confidence intervals
+
 confint(volatility.model1)
 
 confint(volatility.model2)
@@ -235,11 +168,8 @@ confint(volatility.model2)
 confint(volatility.model3)
 
 
-###############################################################
-# Section C: Model Comparison
-###############################################################
+# 9. Model Comparison
 
-# 12. Compare volatility regression models
 model.comparison <- data.frame(
   
   Model = c(
@@ -253,39 +183,63 @@ model.comparison <- data.frame(
   ),
   
   LogLikelihood = c(
+    
     as.numeric(logLik(volatility.model1)),
+    
     as.numeric(logLik(volatility.model2)),
+    
     as.numeric(logLik(volatility.model3))
+    
   ),
   
   Adj_R2 = c(
+    
     summary(volatility.model1)$adj.r.squared,
+    
     summary(volatility.model2)$adj.r.squared,
+    
     summary(volatility.model3)$adj.r.squared
+    
   ),
   
   AIC = c(
+    
     AIC(volatility.model1),
+    
     AIC(volatility.model2),
+    
     AIC(volatility.model3)
+    
   ),
   
   BIC = c(
+    
     BIC(volatility.model1),
+    
     BIC(volatility.model2),
+    
     BIC(volatility.model3)
+    
   ),
   
   Residual_SE = c(
+    
     summary(volatility.model1)$sigma,
+    
     summary(volatility.model2)$sigma,
+    
     summary(volatility.model3)$sigma
+    
   ),
   
   F_Statistic = c(
+    
     summary(volatility.model1)$fstatistic[1],
+    
     summary(volatility.model2)$fstatistic[1],
+    
     summary(volatility.model3)$fstatistic[1]
+    
   ),
   
   Model_pvalue = c(
@@ -324,11 +278,9 @@ model.comparison$Model_pvalue <-
 model.comparison
 
 
-###############################################################
-# Section D: Model Diagnostics
-###############################################################
+# 10. Model Diagnostics
 
-# 13. Diagnostic plots
+# Diagnostic plots
 
 par(mfrow = c(2,2))
 
@@ -341,7 +293,8 @@ plot(volatility.model3)
 par(mfrow = c(1,1))
 
 
-# 14. Jarque-Bera tests
+# Jarque-Bera tests
+
 jb.model1 <- jarque.bera.test(
   residuals(volatility.model1)
 )
@@ -359,21 +312,27 @@ jb.model2
 jb.model3
 
 
-# 15. Autocorrelation tests
+# Durbin-Watson tests
 
-# Durbin-Watson
-dw.model1 <- dwtest(volatility.model1)
+dw.model1 <- dwtest(
+  volatility.model1
+)
 
-dw.model2 <- dwtest(volatility.model2)
+dw.model2 <- dwtest(
+  volatility.model2
+)
 
-dw.model3 <- dwtest(volatility.model3)
+dw.model3 <- dwtest(
+  volatility.model3
+)
 
 dw.model1
 dw.model2
 dw.model3
 
 
-# Ljung-Box
+# Ljung-Box tests
+
 lb.model1 <- Box.test(
   residuals(volatility.model1),
   lag = 20,
@@ -397,20 +356,26 @@ lb.model2
 lb.model3
 
 
-# 16. Heteroskedasticity tests
+# Breusch-Pagan tests
 
-bp.model1 <- bptest(volatility.model1)
+bp.model1 <- bptest(
+  volatility.model1
+)
 
-bp.model2 <- bptest(volatility.model2)
+bp.model2 <- bptest(
+  volatility.model2
+)
 
-bp.model3 <- bptest(volatility.model3)
+bp.model3 <- bptest(
+  volatility.model3
+)
 
 bp.model1
 bp.model2
 bp.model3
 
 
-# 17. Multicollinearity
+# Multicollinearity
 
 vif.model2 <- vif(
   volatility.model2
@@ -424,11 +389,9 @@ vif.model2
 vif.model3
 
 
-###############################################################
-# Section E: Robust Inference
-###############################################################
+# 11. Newey-West Robust Inference
 
-# 18. Newey-West robust standard errors
+# Newey-West robust standard errors
 
 nw.model1 <- coeftest(
   
@@ -475,7 +438,7 @@ nw.model3 <- coeftest(
 )
 
 
-# 19. Display Newey-West results
+# Display Newey-West results
 
 nw.model1
 
@@ -485,10 +448,125 @@ nw.model3
 
 
 ###############################################################
-# Section F: Regression Summary
+# Section C: GPR Component Analysis
 ###############################################################
 
-# 20. Regression summary table
+# 12. Estimate GPR component models
+
+# Geopolitical Acts
+gprd.act.model <- lm(
+  
+  BTC_Volatility ~
+    
+    GPRD_ACT,
+  
+  data = data
+  
+)
+
+
+# Geopolitical Threats
+gprd.threat.model <- lm(
+  
+  BTC_Volatility ~
+    
+    GPRD_THREAT,
+  
+  data = data
+  
+)
+
+
+# Geopolitical Acts + Threats
+gprd.components.model <- lm(
+  
+  BTC_Volatility ~
+    
+    GPRD_ACT +
+    
+    GPRD_THREAT,
+  
+  data = data
+  
+)
+
+
+# 13. Model summaries
+
+summary(gprd.act.model)
+
+summary(gprd.threat.model)
+
+summary(gprd.components.model)
+
+
+# 14. Newey-West Robust Inference for GPR Components
+
+# Geopolitical Acts
+
+nw.gprd.act <- coeftest(
+  
+  gprd.act.model,
+  
+  vcov = NeweyWest(
+    
+    gprd.act.model,
+    
+    prewhite = FALSE
+    
+  )
+  
+)
+
+
+# Geopolitical Threats
+
+nw.gprd.threat <- coeftest(
+  
+  gprd.threat.model,
+  
+  vcov = NeweyWest(
+    
+    gprd.threat.model,
+    
+    prewhite = FALSE
+    
+  )
+  
+)
+
+
+# Geopolitical Acts + Threats
+
+nw.gprd.components <- coeftest(
+  
+  gprd.components.model,
+  
+  vcov = NeweyWest(
+    
+    gprd.components.model,
+    
+    prewhite = FALSE
+    
+  )
+  
+)
+
+
+# Display Newey-West results
+
+nw.gprd.act
+
+nw.gprd.threat
+
+nw.gprd.components
+
+
+###############################################################
+# Section D: Regression Summary
+###############################################################
+
+# 15. Main GPR regression summary
 
 regression.summary <- data.frame(
   
@@ -503,78 +581,91 @@ regression.summary <- data.frame(
   ),
   
   GPR_Coefficient = c(
-    unname(coef(volatility.model1)["GPRD"]),
-    unname(coef(volatility.model2)["GPRD"]),
-    unname(coef(volatility.model3)["GPRD"])
+    
+    unname(
+      coef(volatility.model1)["GPRD"]
+    ),
+    
+    unname(
+      coef(volatility.model2)["GPRD"]
+    ),
+    
+    unname(
+      coef(volatility.model3)["GPRD"]
+    )
+    
   ),
   
   GPR_Lag1_Coefficient = c(
+    
     NA,
-    unname(coef(volatility.model2)["GPR_Lag1"]),
-    unname(coef(volatility.model3)["GPR_Lag1"])
+    
+    unname(
+      coef(volatility.model2)["GPR_Lag1"]
+    ),
+    
+    unname(
+      coef(volatility.model3)["GPR_Lag1"]
+    )
+    
   ),
   
   GPR_Lag2_Coefficient = c(
+    
     NA,
+    
     NA,
-    unname(coef(volatility.model3)["GPR_Lag2"])
+    
+    unname(
+      coef(volatility.model3)["GPR_Lag2"]
+    )
+    
   ),
   
   Adj_R2 = c(
+    
     summary(volatility.model1)$adj.r.squared,
+    
     summary(volatility.model2)$adj.r.squared,
+    
     summary(volatility.model3)$adj.r.squared
+    
   ),
   
   GPR_NW_pvalue = c(
-    nw.model1["GPRD","Pr(>|t|)"],
-    nw.model2["GPRD","Pr(>|t|)"],
-    nw.model3["GPRD","Pr(>|t|)"]
+    
+    nw.model1["GPRD", "Pr(>|t|)"],
+    
+    nw.model2["GPRD", "Pr(>|t|)"],
+    
+    nw.model3["GPRD", "Pr(>|t|)"]
+    
   ),
   
   GPR_Lag1_NW_pvalue = c(
+    
     NA,
-    nw.model2["GPR_Lag1","Pr(>|t|)"],
-    nw.model3["GPR_Lag1","Pr(>|t|)"]
+    
+    nw.model2["GPR_Lag1", "Pr(>|t|)"],
+    
+    nw.model3["GPR_Lag1", "Pr(>|t|)"]
+    
   ),
   
   GPR_Lag2_NW_pvalue = c(
+    
     NA,
+    
     NA,
-    nw.model3["GPR_Lag2","Pr(>|t|)"]
+    
+    nw.model3["GPR_Lag2", "Pr(>|t|)"]
+    
   )
   
 )
 
-regression.summary$GPR_Significant_5pct <- ifelse(
-  
-  regression.summary$GPR_NW_pvalue < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
 
-regression.summary$Lag1_Significant_5pct <- ifelse(
-  
-  regression.summary$GPR_Lag1_NW_pvalue < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-regression.summary$Lag2_Significant_5pct <- ifelse(
-  
-  regression.summary$GPR_Lag2_NW_pvalue < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
+# Round coefficients
 
 regression.summary$GPR_Coefficient <-
   signif(
@@ -594,11 +685,17 @@ regression.summary$GPR_Lag2_Coefficient <-
     4
   )
 
+
+# Round adjusted R-squared
+
 regression.summary$Adj_R2 <-
   round(
     regression.summary$Adj_R2,
     4
   )
+
+
+# Round Newey-West p-values
 
 regression.summary$GPR_NW_pvalue <-
   signif(
@@ -618,81 +715,122 @@ regression.summary$GPR_Lag2_NW_pvalue <-
     4
   )
 
+
 regression.summary
 
-###############################################################
-# Section G: Overall Summary
-###############################################################
 
-# 21. Overall findings table
-overall.summary <- data.frame(
+# 16. GPR component regression summary
+
+gpr.component.summary <- data.frame(
   
   Model = c(
     
-    "Volatility: No Lag",
+    "GPRD_ACT",
     
-    "Volatility: 1 Lag",
+    "GPRD_THREAT",
     
-    "Volatility: 2 Lags"
+    "GPRD_ACT + GPRD_THREAT"
     
   ),
   
-  Correlation = rep(
-    unname(volatility.cor$estimate),
-    3
+  GPRD_ACT_Coefficient = c(
+    
+    unname(
+      coef(gprd.act.model)["GPRD_ACT"]
+    ),
+    
+    NA,
+    
+    unname(
+      coef(gprd.components.model)["GPRD_ACT"]
+    )
+    
   ),
   
-  Correlation_pvalue = rep(
-    volatility.cor$p.value,
-    3
+  GPRD_THREAT_Coefficient = c(
+    
+    NA,
+    
+    unname(
+      coef(gprd.threat.model)["GPRD_THREAT"]
+    ),
+    
+    unname(
+      coef(gprd.components.model)["GPRD_THREAT"]
+    )
+    
   ),
   
   Adj_R2 = c(
-    summary(volatility.model1)$adj.r.squared,
-    summary(volatility.model2)$adj.r.squared,
-    summary(volatility.model3)$adj.r.squared
+    
+    summary(gprd.act.model)$adj.r.squared,
+    
+    summary(gprd.threat.model)$adj.r.squared,
+    
+    summary(gprd.components.model)$adj.r.squared
+    
   ),
   
-  Final_GPR_pvalue = c(
-    nw.model1["GPRD","Pr(>|t|)"],
-    nw.model2["GPRD","Pr(>|t|)"],
-    nw.model3["GPRD","Pr(>|t|)"]
+  GPRD_ACT_NW_pvalue = c(
+    
+    nw.gprd.act["GPRD_ACT", "Pr(>|t|)"],
+    
+    NA,
+    
+    nw.gprd.components["GPRD_ACT", "Pr(>|t|)"]
+    
+  ),
+  
+  GPRD_THREAT_NW_pvalue = c(
+    
+    NA,
+    
+    nw.gprd.threat["GPRD_THREAT", "Pr(>|t|)"],
+    
+    nw.gprd.components["GPRD_THREAT", "Pr(>|t|)"]
+    
   )
   
 )
 
-overall.summary$Significant_5pct <- ifelse(
-  
-  overall.summary$Final_GPR_pvalue < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
 
-overall.summary$Correlation <-
-  round(
-    overall.summary$Correlation,
-    4
-  )
+# Round coefficients
 
-overall.summary$Correlation_pvalue <-
+gpr.component.summary$GPRD_ACT_Coefficient <-
   signif(
-    overall.summary$Correlation_pvalue,
+    gpr.component.summary$GPRD_ACT_Coefficient,
     4
   )
 
-overall.summary$Adj_R2 <-
-  round(
-    overall.summary$Adj_R2,
-    4
-  )
-
-overall.summary$Final_GPR_pvalue <-
+gpr.component.summary$GPRD_THREAT_Coefficient <-
   signif(
-    overall.summary$Final_GPR_pvalue,
+    gpr.component.summary$GPRD_THREAT_Coefficient,
     4
   )
 
-overall.summary
+
+# Round adjusted R-squared
+
+gpr.component.summary$Adj_R2 <-
+  round(
+    gpr.component.summary$Adj_R2,
+    4
+  )
+
+
+# Round Newey-West p-values
+
+gpr.component.summary$GPRD_ACT_NW_pvalue <-
+  signif(
+    gpr.component.summary$GPRD_ACT_NW_pvalue,
+    4
+  )
+
+gpr.component.summary$GPRD_THREAT_NW_pvalue <-
+  signif(
+    gpr.component.summary$GPRD_THREAT_NW_pvalue,
+    4
+  )
+
+
+gpr.component.summary

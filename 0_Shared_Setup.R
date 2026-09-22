@@ -1,6 +1,4 @@
-# ============================================================
 # 1. LOAD PACKAGES
-# ============================================================
 
 library(readxl)
 library(dplyr)
@@ -8,36 +6,32 @@ library(rugarch)
 library(zoo)
 
 
-# ============================================================
 # 2. LOAD AND PREPARE DATA
-# ============================================================
 
-data <- read_excel(
+data0 <- read_excel(
   "Thesis_Data.xlsx",
   sheet = "Data",
   na = "NA"
 )
 
 # Remove observations containing missing values
-data <- na.omit(data)
+data0 <- na.omit(data0)
 
 # Ensure Date is stored as Date
-data$Date <- as.Date(data$Date)
+data0$Date <- as.Date(data0$Date)
 
 # Ensure observations are in chronological order
-data <- data %>%
+data0 <- data0 %>%
   arrange(Date)
 
 
 # Common vectors used by downstream scripts
-btc.returns  <- data$BTC_log_returns
-j303.returns <- data$Index_log_returns
-gpr.raw      <- data$GPRD
+btc.returns  <- data0$BTC_log_returns
+j303.returns <- data0$Index_log_returns
+gpr.raw      <- data0$GPRD
 
 
-# ============================================================
 # 3. FINAL BITCOIN EGARCH MODEL
-# ============================================================
 
 btc.spec <- ugarchspec(
   variance.model = list(
@@ -57,14 +51,13 @@ btc.fit <- ugarchfit(
 )
 
 # Canonical Bitcoin conditional volatility series
-data$BTC_Volatility <- as.numeric(
+data0$BTC_Volatility <- as.numeric(
   sigma(btc.fit)
 )
 
 
-# ============================================================
+
 # 4. FINAL J303 EGARCH MODEL
-# ============================================================
 
 j303.spec <- ugarchspec(
   variance.model = list(
@@ -84,22 +77,21 @@ j303.fit <- ugarchfit(
 )
 
 # Canonical J303 conditional volatility series
-data$J303_Volatility <- as.numeric(
+data0$J303_Volatility <- as.numeric(
   sigma(j303.fit)
 )
 
-# ============================================================
+
 # 5. BASELINE J303-BITCOIN VOLATILITY REGRESSION
-# ============================================================
 
 j303.btc <- lm(
   J303_Volatility ~ BTC_Volatility,
-  data = data
+  data = data0
 )
 
-# ============================================================
+
 # 6. GPR K-MEANS CLUSTERING
-# ============================================================
+
 
 set.seed(123)
 
@@ -110,7 +102,7 @@ kmeans.2 <- kmeans(
 )
 
 # Store the cluster assignment
-data$GPR_Cluster <- kmeans.2$cluster
+data0$GPR_Cluster <- kmeans.2$cluster
 
 # Sort the two cluster centres from low to high
 GPR_cluster_centres <- sort(
@@ -118,46 +110,46 @@ GPR_cluster_centres <- sort(
 )
 
 
-# ============================================================
+
 # 7. DATA-DRIVEN GPR THRESHOLD
-# ============================================================
+
 
 # The threshold is the midpoint between the two
 # k-means cluster centres.
 GPR_threshold <- mean(GPR_cluster_centres)
 
 # Classify observations using the calculated threshold
-data$GPR_Regime <- ifelse(
-  data$GPRD < GPR_threshold,
+data0$GPR_Regime <- ifelse(
+  data0$GPRD < GPR_threshold,
   "Lower GPR",
   "Elevated GPR"
 )
 
 # Make the ordering explicit
-data$GPR_Regime <- factor(
-  data$GPR_Regime,
+data0$GPR_Regime <- factor(
+  data0$GPR_Regime,
   levels = c("Lower GPR", "Elevated GPR")
 )
 
 
-# ============================================================
+
 # 8. DYNAMIC IDENTIFICATION OF GPR EVENT WINDOWS
-# ============================================================
+
 
 # 21-day centred moving average
-data$GPR_MA <- rollmean(
-  data$GPRD,
+data0$GPR_MA <- rollmean(
+  data0$GPRD,
   k = 21,
   fill = NA,
   align = "center"
 )
 
 
-# ------------------------------------------------------------
-# 8.1 Identify local maxima and minima
-# ------------------------------------------------------------
 
-gpr.ma <- data$GPR_MA
+# 8.1 Identify local maxima and minima
+
+
+gpr.ma <- data0$GPR_MA
 
 maxima <- which(
   diff(sign(diff(gpr.ma))) == -2
@@ -177,9 +169,9 @@ minima <- minima[
 ]
 
 
-# ------------------------------------------------------------
+
 # 8.2 Construct GPR episodes
-# ------------------------------------------------------------
+
 
 episode.table <- data.frame()
 
@@ -223,10 +215,10 @@ for (i in maxima) {
   episode.table <- rbind(
     episode.table,
     data.frame(
-      Peak_Date = data$Date[i],
+      Peak_Date = data0$Date[i],
       Peak_GPR = peak.gpr,
-      Start_Date = data$Date[left.min],
-      End_Date = data$Date[right.min],
+      Start_Date = data0$Date[left.min],
+      End_Date = data0$Date[right.min],
       Start_GPR = start.gpr,
       End_GPR = end.gpr,
       Prominence = prominence
@@ -235,9 +227,9 @@ for (i in maxima) {
 }
 
 
-# ------------------------------------------------------------
+
 # 8.3 Select the five most prominent events
-# ------------------------------------------------------------
+
 
 top.events <- episode.table[
   order(-episode.table$Prominence),
@@ -254,9 +246,9 @@ top.events <- top.events[
 ]
 
 
-# ============================================================
+
 # 9. CREATE FINAL EVENT WINDOW OBJECT
-# ============================================================
+
 
 event.names <- c(
   "Russia-Ukraine (Crimea Crisis)",
@@ -277,3 +269,4 @@ events <- data.frame(
   Start_Date = top.events$Start_Date,
   End_Date = top.events$End_Date
 )
+

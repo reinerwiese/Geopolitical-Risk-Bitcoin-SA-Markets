@@ -1,6 +1,5 @@
 # 1. Load Packages
 
-library(readxl)
 library(rugarch)
 library(FinTS)
 

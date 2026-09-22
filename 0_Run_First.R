@@ -1,3 +1,4 @@
+#Need to run this script before any other script
 # 1. LOAD PACKAGES
 
 library(readxl)

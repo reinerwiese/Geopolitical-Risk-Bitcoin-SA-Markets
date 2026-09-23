@@ -1,93 +1,25 @@
 # 1. Load required packages
-library(readxl)
-library(rugarch)
 library(dplyr)
 library(ggplot2)
 library(lmtest)
-library(car)
 library(sandwich)
 library(tseries)
 
 
 # 2. Import data
-data <- read_excel(
-  "Thesis_Data.xlsx",
-  sheet = "Data",
-  na = "NA"
-)
-
-data <- na.omit(data)
-
-
-# 3. Estimate Bitcoin EGARCH model
-spec.btc <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-fit.btc <- ugarchfit(
-  spec = spec.btc,
-  data = data$BTC_log_returns
-)
-
-
-# 4. Extract Bitcoin Conditional Volatility
-data$BTC_Volatility <- as.numeric(
-  sigma(fit.btc)
-)
-
-
-# 5. Estimate J303 EGARCH model
-spec.j303 <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-fit.j303 <- ugarchfit(
-  spec = spec.j303,
-  data = data$Index_log_returns
-)
-
-
-# 6. Extract J303 Conditional Volatility
-data$J303_Volatility <- as.numeric(
-  sigma(fit.j303)
-)
+data <- na.omit(data0)
 
 
 ###############################################################
 # Section A: Exploratory Analysis
 ###############################################################
 
-# 7. Correlation matrix
+# 3. Correlation matrix
 correlation.matrix <- cor(
   
   data[, c(
     "BTC_Volatility",
-    "J303_Volatility",
-    "GPRD"
+    "J303_Volatility"
   )],
   
   method = "pearson"
@@ -100,7 +32,7 @@ round(
 )
 
 
-# 8. Bitcoin Volatility vs J303 Volatility
+# 4. Bitcoin Volatility vs J303 Volatility
 ggplot(
   data,
   aes(
@@ -114,8 +46,26 @@ ggplot(
   ) +
   
   geom_smooth(
+    aes(
+      colour = "Linear"
+    ),
     method = "lm",
     se = TRUE
+  ) +
+  
+  geom_smooth(
+    aes(
+      colour = "LOESS"
+    ),
+    method = "loess",
+    se = TRUE
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "Linear" = "blue",
+      "LOESS" = "red"
+    )
   ) +
   
   theme_minimal() +
@@ -123,11 +73,12 @@ ggplot(
   labs(
     title = "Bitcoin Volatility vs J303 Volatility",
     x = "Bitcoin Conditional Volatility",
-    y = "J303 Conditional Volatility"
+    y = "J303 Conditional Volatility",
+    colour = "Trend"
   )
 
 
-# 9. Pearson correlation test
+# 5. Pearson correlation test
 btc.j303.cor <- cor.test(
   
   data$BTC_Volatility,
@@ -141,7 +92,7 @@ btc.j303.cor <- cor.test(
 btc.j303.cor
 
 
-# 10. Correlation summary table
+# 6. Correlation summary
 correlation.summary <- data.frame(
   
   Relationship = "Bitcoin vs J303 Volatility",
@@ -155,20 +106,52 @@ correlation.summary <- data.frame(
 )
 
 correlation.summary$Correlation <-
-  round(correlation.summary$Correlation, 4)
+  round(
+    correlation.summary$Correlation,
+    4
+  )
 
 correlation.summary$P_Value <-
-  signif(correlation.summary$P_Value, 4)
+  signif(
+    correlation.summary$P_Value,
+    4
+  )
 
 correlation.summary
 
 
 ###############################################################
-# Section B: Regression Analysis
+# Section B: Volatility Regression Analysis
 ###############################################################
 
-# 11. Baseline volatility model
-j303.btc <- lm(
+# 7. Create lagged variables
+data$BTC_Volatility_Lag1 <-
+  dplyr::lag(
+    data$BTC_Volatility,
+    1
+  )
+
+data$BTC_Volatility_Lag2 <-
+  dplyr::lag(
+    data$BTC_Volatility,
+    2
+  )
+
+data$J303_Volatility_Lag1 <-
+  dplyr::lag(
+    data$J303_Volatility,
+    1
+  )
+
+data$J303_Volatility_Lag2 <-
+  dplyr::lag(
+    data$J303_Volatility,
+    2
+  )
+
+
+# 8. No-lag model
+j303.btc.0 <- lm(
   
   J303_Volatility ~
     
@@ -179,382 +162,681 @@ j303.btc <- lm(
 )
 
 
-# 12. Extended volatility model including GPR
-j303.btc.gpr <- lm(
+# 9. One-lag model
+data.1lag <- na.omit(
+  data[, c(
+    "J303_Volatility",
+    "BTC_Volatility",
+    "BTC_Volatility_Lag1"
+  )]
+)
+
+j303.btc.1 <- lm(
   
   J303_Volatility ~
     
     BTC_Volatility +
     
-    GPRD,
+    BTC_Volatility_Lag1,
+  
+  data = data.1lag
+  
+)
+
+
+# 10. Two-lag model
+data.2lag <- na.omit(
+  data[, c(
+    "J303_Volatility",
+    "BTC_Volatility",
+    "BTC_Volatility_Lag1",
+    "BTC_Volatility_Lag2"
+  )]
+)
+
+j303.btc.2 <- lm(
+  
+  J303_Volatility ~
+    
+    BTC_Volatility +
+    
+    BTC_Volatility_Lag1 +
+    
+    BTC_Volatility_Lag2,
+  
+  data = data.2lag
+  
+)
+
+
+# 11. Dynamic two-lag model
+data.dynamic <- na.omit(
+  data[, c(
+    "J303_Volatility",
+    "J303_Volatility_Lag1",
+    "J303_Volatility_Lag2",
+    "BTC_Volatility",
+    "BTC_Volatility_Lag1",
+    "BTC_Volatility_Lag2"
+  )]
+)
+
+j303.btc.dynamic <- lm(
+  
+  J303_Volatility ~
+    
+    J303_Volatility_Lag1 +
+    
+    J303_Volatility_Lag2 +
+    
+    BTC_Volatility +
+    
+    BTC_Volatility_Lag1 +
+    
+    BTC_Volatility_Lag2,
+  
+  data = data.dynamic
+  
+)
+
+
+# 12. Model summaries
+summary(j303.btc.0)
+
+summary(j303.btc.1)
+
+summary(j303.btc.2)
+
+summary(j303.btc.dynamic)
+
+
+# 13. Newey-West robust standard errors
+nw.j303.btc.0 <- coeftest(
+  
+  j303.btc.0,
+  
+  vcov = NeweyWest(
+    j303.btc.0,
+    prewhite = FALSE
+  )
+  
+)
+
+nw.j303.btc.1 <- coeftest(
+  
+  j303.btc.1,
+  
+  vcov = NeweyWest(
+    j303.btc.1,
+    prewhite = FALSE
+  )
+  
+)
+
+nw.j303.btc.2 <- coeftest(
+  
+  j303.btc.2,
+  
+  vcov = NeweyWest(
+    j303.btc.2,
+    prewhite = FALSE
+  )
+  
+)
+
+nw.j303.btc.dynamic <- coeftest(
+  
+  j303.btc.dynamic,
+  
+  vcov = NeweyWest(
+    j303.btc.dynamic,
+    prewhite = FALSE
+  )
+  
+)
+
+
+nw.j303.btc.0
+
+nw.j303.btc.1
+
+nw.j303.btc.2
+
+nw.j303.btc.dynamic
+
+
+###############################################################
+# Section C: Granger Causality and Diagnostics
+###############################################################
+
+# 14. Bitcoin volatility to J303 volatility
+granger.btc.j303 <- grangertest(
+  
+  J303_Volatility ~ BTC_Volatility,
+  
+  order = 2,
   
   data = data
   
 )
 
-
-# 13. Model summaries
-summary(j303.btc)
-
-summary(j303.btc.gpr)
+granger.btc.j303
 
 
-# 14. 95% confidence intervals
-confint(j303.btc)
-
-confint(j303.btc.gpr)
-
-
-###############################################################
-# Section C: Model Comparison
-###############################################################
-
-# 15. Compare regression models
-model.comparison <- data.frame(
+# 15. J303 volatility to Bitcoin volatility
+granger.j303.btc <- grangertest(
   
-  Model = c(
+  BTC_Volatility ~ J303_Volatility,
+  
+  order = 2,
+  
+  data = data
+  
+)
+
+granger.j303.btc
+
+
+# 16. Granger causality summary
+granger.summary <- data.frame(
+  
+  Direction = c(
     
-    "J303 Volatility ~ BTC Volatility",
+    "Bitcoin Volatility -> J303 Volatility",
     
-    "J303 Volatility ~ BTC Volatility + GPR"
+    "J303 Volatility -> Bitcoin Volatility"
     
   ),
   
-  LogLikelihood = c(
-    as.numeric(logLik(j303.btc)),
-    as.numeric(logLik(j303.btc.gpr))
-  ),
-  
-  Adj_R2 = c(
-    summary(j303.btc)$adj.r.squared,
-    summary(j303.btc.gpr)$adj.r.squared
-  ),
-  
-  AIC = c(
-    AIC(j303.btc),
-    AIC(j303.btc.gpr)
-  ),
-  
-  BIC = c(
-    BIC(j303.btc),
-    BIC(j303.btc.gpr)
-  ),
-  
-  Residual_SE = c(
-    summary(j303.btc)$sigma,
-    summary(j303.btc.gpr)$sigma
+  Lags = c(
+    2,
+    2
   ),
   
   F_Statistic = c(
-    summary(j303.btc)$fstatistic[1],
-    summary(j303.btc.gpr)$fstatistic[1]
+    
+    granger.btc.j303$F[2],
+    
+    granger.j303.btc$F[2]
+    
   ),
   
-  Model_pvalue = c(
+  P_Value = c(
     
-    pf(
-      summary(j303.btc)$fstatistic[1],
-      summary(j303.btc)$fstatistic[2],
-      summary(j303.btc)$fstatistic[3],
-      lower.tail = FALSE
-    ),
+    granger.btc.j303$`Pr(>F)`[2],
     
-    pf(
-      summary(j303.btc.gpr)$fstatistic[1],
-      summary(j303.btc.gpr)$fstatistic[2],
-      summary(j303.btc.gpr)$fstatistic[3],
-      lower.tail = FALSE
-    )
+    granger.j303.btc$`Pr(>F)`[2]
     
   )
   
 )
 
-model.comparison$Model_pvalue <-
-  signif(model.comparison$Model_pvalue, 4)
+granger.summary$F_Statistic <-
+  round(
+    granger.summary$F_Statistic,
+    4
+  )
 
-model.comparison
+granger.summary$P_Value <-
+  signif(
+    granger.summary$P_Value,
+    4
+  )
+
+granger.summary
 
 
-# 16. Nested model comparison
-model.comparison.test <- anova(
-  
-  j303.btc,
-  
-  j303.btc.gpr
-  
+# 17. Jarque-Bera tests
+jb.j303.btc.0 <- jarque.bera.test(
+  residuals(j303.btc.0)
 )
 
-model.comparison.test
-
-
-###############################################################
-# Section D: Model Diagnostics
-###############################################################
-
-# 17. Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(j303.btc)
-
-plot(j303.btc.gpr)
-
-par(mfrow = c(1,1))
-
-
-# 18. Jarque-Bera tests
-jb.j303.btc <- jarque.bera.test(
-  residuals(j303.btc)
+jb.j303.btc.1 <- jarque.bera.test(
+  residuals(j303.btc.1)
 )
 
-jb.j303.btc.gpr <- jarque.bera.test(
-  residuals(j303.btc.gpr)
+jb.j303.btc.2 <- jarque.bera.test(
+  residuals(j303.btc.2)
 )
 
-jb.j303.btc
-jb.j303.btc.gpr
+jb.j303.btc.dynamic <- jarque.bera.test(
+  residuals(j303.btc.dynamic)
+)
+
+jb.j303.btc.0
+jb.j303.btc.1
+jb.j303.btc.2
+jb.j303.btc.dynamic
 
 
-# 19. Durbin-Watson tests
-dw.j303.btc <- dwtest(j303.btc)
-
-dw.j303.btc.gpr <- dwtest(j303.btc.gpr)
-
-dw.j303.btc
-dw.j303.btc.gpr
-
-
-# 20. Ljung-Box tests
-lb.j303.btc <- Box.test(
-  residuals(j303.btc),
+# 18. Ljung-Box tests
+lb.j303.btc.0 <- Box.test(
+  residuals(j303.btc.0),
   lag = 20,
   type = "Ljung-Box"
 )
 
-lb.j303.btc.gpr <- Box.test(
-  residuals(j303.btc.gpr),
+lb.j303.btc.1 <- Box.test(
+  residuals(j303.btc.1),
   lag = 20,
   type = "Ljung-Box"
 )
 
-lb.j303.btc
-lb.j303.btc.gpr
-
-
-# 21. Breusch-Pagan tests
-bp.j303.btc <- bptest(j303.btc)
-
-bp.j303.btc.gpr <- bptest(j303.btc.gpr)
-
-bp.j303.btc
-bp.j303.btc.gpr
-
-
-# 22. Variance inflation factors
-vif.j303.btc.gpr <- vif(
-  j303.btc.gpr
+lb.j303.btc.2 <- Box.test(
+  residuals(j303.btc.2),
+  lag = 20,
+  type = "Ljung-Box"
 )
 
-vif.j303.btc.gpr
-
-
-###############################################################
-# Section E: Robust Inference
-###############################################################
-
-# 23. Newey-West robust standard errors
-nw.j303.btc <- coeftest(
-  
-  j303.btc,
-  
-  vcov = NeweyWest(
-    
-    j303.btc,
-    
-    prewhite = FALSE
-    
-  )
-  
+lb.j303.btc.dynamic <- Box.test(
+  residuals(j303.btc.dynamic),
+  lag = 20,
+  type = "Ljung-Box"
 )
 
+lb.j303.btc.0
+lb.j303.btc.1
+lb.j303.btc.2
+lb.j303.btc.dynamic
 
-nw.j303.btc.gpr <- coeftest(
-  
-  j303.btc.gpr,
-  
-  vcov = NeweyWest(
-    
-    j303.btc.gpr,
-    
-    prewhite = FALSE
-    
-  )
-  
+
+# 19. Breusch-Godfrey tests
+bg.j303.btc.dynamic.2 <- bgtest(
+  j303.btc.dynamic,
+  order = 2
 )
 
+bg.j303.btc.dynamic.20 <- bgtest(
+  j303.btc.dynamic,
+  order = 20
+)
 
-# 24. Display Newey-West results
-nw.j303.btc
+bg.j303.btc.dynamic.2
+bg.j303.btc.dynamic.20
 
-nw.j303.btc.gpr
+
+# 20. Breusch-Pagan tests
+bp.j303.btc.0 <- bptest(
+  j303.btc.0
+)
+
+bp.j303.btc.1 <- bptest(
+  j303.btc.1
+)
+
+bp.j303.btc.2 <- bptest(
+  j303.btc.2
+)
+
+bp.j303.btc.dynamic <- bptest(
+  j303.btc.dynamic
+)
+
+bp.j303.btc.0
+bp.j303.btc.1
+bp.j303.btc.2
+bp.j303.btc.dynamic
 
 
 ###############################################################
-# Section F: Regression Summary
+# Section D: Summary Tables
 ###############################################################
 
-# 25. Regression summary table
+# 21. Regression summary
 regression.summary <- data.frame(
   
   Model = c(
     
-    "J303 Volatility ~ BTC Volatility",
+    "No Lag",
     
-    "J303 Volatility ~ BTC Volatility + GPR"
+    "1 Lag",
+    
+    "2 Lags",
+    
+    "Dynamic 2 Lags"
     
   ),
   
   BTC_Coefficient = c(
-    unname(coef(j303.btc)["BTC_Volatility"]),
-    unname(coef(j303.btc.gpr)["BTC_Volatility"])
+    
+    unname(
+      coef(j303.btc.0)["BTC_Volatility"]
+    ),
+    
+    unname(
+      coef(j303.btc.1)["BTC_Volatility"]
+    ),
+    
+    unname(
+      coef(j303.btc.2)["BTC_Volatility"]
+    ),
+    
+    unname(
+      coef(j303.btc.dynamic)["BTC_Volatility"]
+    )
+    
   ),
   
-  GPR_Coefficient = c(
+  BTC_Lag1_Coefficient = c(
+    
     NA,
-    unname(coef(j303.btc.gpr)["GPRD"])
+    
+    unname(
+      coef(j303.btc.1)["BTC_Volatility_Lag1"]
+    ),
+    
+    unname(
+      coef(j303.btc.2)["BTC_Volatility_Lag1"]
+    ),
+    
+    unname(
+      coef(j303.btc.dynamic)["BTC_Volatility_Lag1"]
+    )
+    
+  ),
+  
+  BTC_Lag2_Coefficient = c(
+    
+    NA,
+    
+    NA,
+    
+    unname(
+      coef(j303.btc.2)["BTC_Volatility_Lag2"]
+    ),
+    
+    unname(
+      coef(j303.btc.dynamic)["BTC_Volatility_Lag2"]
+    )
+    
+  ),
+  
+  J303_Lag1_Coefficient = c(
+    
+    NA,
+    
+    NA,
+    
+    NA,
+    
+    unname(
+      coef(j303.btc.dynamic)["J303_Volatility_Lag1"]
+    )
+    
+  ),
+  
+  J303_Lag2_Coefficient = c(
+    
+    NA,
+    
+    NA,
+    
+    NA,
+    
+    unname(
+      coef(j303.btc.dynamic)["J303_Volatility_Lag2"]
+    )
+    
   ),
   
   Adj_R2 = c(
-    summary(j303.btc)$adj.r.squared,
-    summary(j303.btc.gpr)$adj.r.squared
+    
+    summary(j303.btc.0)$adj.r.squared,
+    
+    summary(j303.btc.1)$adj.r.squared,
+    
+    summary(j303.btc.2)$adj.r.squared,
+    
+    summary(j303.btc.dynamic)$adj.r.squared
+    
   ),
   
-  OLS_BTC_pvalue = c(
-    summary(j303.btc)$coefficients["BTC_Volatility",4],
-    summary(j303.btc.gpr)$coefficients["BTC_Volatility",4]
+  BTC_NW_pvalue = c(
+    
+    nw.j303.btc.0[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    
+    nw.j303.btc.1[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    
+    nw.j303.btc.2[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    
+    nw.j303.btc.dynamic[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ]
+    
   ),
   
-  Final_BTC_pvalue = c(
-    nw.j303.btc["BTC_Volatility","Pr(>|t|)"],
-    nw.j303.btc.gpr["BTC_Volatility","Pr(>|t|)"]
-  ),
-  
-  Final_GPR_pvalue = c(
+  BTC_Lag1_NW_pvalue = c(
+    
     NA,
-    nw.j303.btc.gpr["GPRD","Pr(>|t|)"]
-  )
+    
+    nw.j303.btc.1[
+      "BTC_Volatility_Lag1",
+      "Pr(>|t|)"
+    ],
+    
+    nw.j303.btc.2[
+      "BTC_Volatility_Lag1",
+      "Pr(>|t|)"
+    ],
+    
+    nw.j303.btc.dynamic[
+      "BTC_Volatility_Lag1",
+      "Pr(>|t|)"
+    ]
+    
+  ),
+  
+BTC_Lag2_NW_pvalue = c(
+  
+  NA,
+  
+  NA,
+  
+  nw.j303.btc.2[
+    "BTC_Volatility_Lag2",
+    "Pr(>|t|)"
+  ],
+  
+  nw.j303.btc.dynamic[
+    "BTC_Volatility_Lag2",
+    "Pr(>|t|)"
+  ]
   
 )
 
-
-regression.summary$Significant_5pct <- ifelse(
-  
-  ifelse(
-    is.na(regression.summary$Final_BTC_pvalue),
-    regression.summary$OLS_BTC_pvalue,
-    regression.summary$Final_BTC_pvalue
-  ) < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
 )
 
 
 regression.summary$BTC_Coefficient <-
-  round(regression.summary$BTC_Coefficient, 4)
+  signif(
+    regression.summary$BTC_Coefficient,
+    4
+  )
 
-regression.summary$GPR_Coefficient <-
-  signif(regression.summary$GPR_Coefficient, 4)
+regression.summary$BTC_Lag1_Coefficient <-
+  signif(
+    regression.summary$BTC_Lag1_Coefficient,
+    4
+  )
+
+regression.summary$BTC_Lag2_Coefficient <-
+  signif(
+    regression.summary$BTC_Lag2_Coefficient,
+    4
+  )
+
+regression.summary$J303_Lag1_Coefficient <-
+  signif(
+    regression.summary$J303_Lag1_Coefficient,
+    4
+  )
+
+regression.summary$J303_Lag2_Coefficient <-
+  signif(
+    regression.summary$J303_Lag2_Coefficient,
+    4
+  )
 
 regression.summary$Adj_R2 <-
-  round(regression.summary$Adj_R2, 4)
+  round(
+    regression.summary$Adj_R2,
+    4
+  )
 
-regression.summary$OLS_BTC_pvalue <-
-  signif(regression.summary$OLS_BTC_pvalue, 4)
+regression.summary$BTC_NW_pvalue <-
+  signif(
+    regression.summary$BTC_NW_pvalue,
+    4
+  )
 
-regression.summary$Final_BTC_pvalue <-
-  signif(regression.summary$Final_BTC_pvalue, 4)
+regression.summary$BTC_Lag1_NW_pvalue <-
+  signif(
+    regression.summary$BTC_Lag1_NW_pvalue,
+    4
+  )
 
-regression.summary$Final_GPR_pvalue <-
-  signif(regression.summary$Final_GPR_pvalue, 4)
+regression.summary$BTC_Lag2_NW_pvalue <-
+  signif(
+    regression.summary$BTC_Lag2_NW_pvalue,
+    4
+  )
 
 regression.summary
 
 
-###############################################################
-# Section G: Overall Summary
-###############################################################
+# 22. Granger causality summary
+granger.summary
 
-# 26. Overall findings table
-overall.summary <- data.frame(
+
+# 23. Diagnostic summary
+diagnostic.summary <- data.frame(
   
   Model = c(
-    "J303 Volatility ~ BTC Volatility",
-    "J303 Volatility ~ BTC Volatility + GPR"
+    
+    "No Lag",
+    
+    "1 Lag",
+    
+    "2 Lags",
+    
+    "Dynamic 2 Lags"
+    
   ),
   
-  Correlation = c(
-    unname(btc.j303.cor$estimate),
-    unname(btc.j303.cor$estimate)
+  JB_P_Value = c(
+    
+    jb.j303.btc.0$p.value,
+    
+    jb.j303.btc.1$p.value,
+    
+    jb.j303.btc.2$p.value,
+    
+    jb.j303.btc.dynamic$p.value
+    
   ),
   
-  Correlation_pvalue = c(
-    btc.j303.cor$p.value,
-    btc.j303.cor$p.value
+  Ljung_Box_P_Value = c(
+    
+    lb.j303.btc.0$p.value,
+    
+    lb.j303.btc.1$p.value,
+    
+    lb.j303.btc.2$p.value,
+    
+    lb.j303.btc.dynamic$p.value
+    
   ),
   
-  BTC_Coefficient = c(
-    unname(coef(j303.btc)["BTC_Volatility"]),
-    unname(coef(j303.btc.gpr)["BTC_Volatility"])
-  ),
-  
-  GPR_Coefficient = c(
-    NA,
-    unname(coef(j303.btc.gpr)["GPRD"])
-  ),
-  
-  Adj_R2 = c(
-    summary(j303.btc)$adj.r.squared,
-    summary(j303.btc.gpr)$adj.r.squared
-  ),
-  
-  Final_pvalue = c(
-    nw.j303.btc["BTC_Volatility","Pr(>|t|)"],
-    nw.j303.btc.gpr["BTC_Volatility","Pr(>|t|)"]
+  BP_P_Value = c(
+    
+    bp.j303.btc.0$p.value,
+    
+    bp.j303.btc.1$p.value,
+    
+    bp.j303.btc.2$p.value,
+    
+    bp.j303.btc.dynamic$p.value
+    
   )
   
 )
 
-overall.summary$Significant <- ifelse(
+diagnostic.summary$JB_P_Value <-
+  signif(
+    diagnostic.summary$JB_P_Value,
+    4
+  )
+
+diagnostic.summary$Ljung_Box_P_Value <-
+  signif(
+    diagnostic.summary$Ljung_Box_P_Value,
+    4
+  )
+
+diagnostic.summary$BP_P_Value <-
+  signif(
+    diagnostic.summary$BP_P_Value,
+    4
+  )
+
+diagnostic.summary
+
+
+# 24. Dynamic model serial correlation summary
+dynamic.serial.summary <- data.frame(
   
-  overall.summary$Final_pvalue < 0.05,
+  Test = c(
+    
+    "Breusch-Godfrey (2 lags)",
+    
+    "Breusch-Godfrey (20 lags)"
+    
+  ),
   
-  "Yes",
+  Statistic = c(
+    
+    unname(
+      bg.j303.btc.dynamic.2$statistic
+    ),
+    
+    unname(
+      bg.j303.btc.dynamic.20$statistic
+    )
+    
+  ),
   
-  "No"
+  P_Value = c(
+    
+    bg.j303.btc.dynamic.2$p.value,
+    
+    bg.j303.btc.dynamic.20$p.value
+    
+  )
   
 )
 
-overall.summary$Correlation <-
-  round(overall.summary$Correlation, 4)
+dynamic.serial.summary$Statistic <-
+  round(
+    dynamic.serial.summary$Statistic,
+    4
+  )
 
-overall.summary$Correlation_pvalue <-
-  signif(overall.summary$Correlation_pvalue, 4)
+dynamic.serial.summary$P_Value <-
+  signif(
+    dynamic.serial.summary$P_Value,
+    4
+  )
 
-overall.summary$BTC_Coefficient <-
-  round(overall.summary$BTC_Coefficient, 4)
-
-overall.summary$GPR_Coefficient <-
-  signif(overall.summary$GPR_Coefficient, 4)
-
-overall.summary$Adj_R2 <-
-  round(overall.summary$Adj_R2, 4)
-
-overall.summary$Final_pvalue <-
-  signif(overall.summary$Final_pvalue, 4)
-
-overall.summary
+dynamic.serial.summary
 
 

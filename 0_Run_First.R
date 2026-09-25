@@ -1,4 +1,5 @@
-#Need to run this script before any other script
+# Run this script before any other script
+
 # 1. LOAD PACKAGES
 
 library(readxl)
@@ -10,264 +11,212 @@ library(zoo)
 # 2. LOAD AND PREPARE DATA
 
 data0 <- read_excel(
-  "Thesis_Data.xlsx",
+  "C:/Users/chris/OneDrive/Documents/Thesis/Thesis_Data.xlsx",
   sheet = "Data",
   na = "NA"
 )
 
-# Remove observations containing missing values
 data0 <- na.omit(data0)
 
-# Ensure Date is stored as Date
 data0$Date <- as.Date(data0$Date)
 
-# Ensure observations are in chronological order
-data0 <- data0 %>%
-  arrange(Date)
+
+# 3. EGARCH FUNCTION
+
+fit_egarch <- function(returns) {
+  
+  spec <- ugarchspec(
+    variance.model = list(
+      model = "eGARCH",
+      garchOrder = c(1, 1)
+    ),
+    mean.model = list(
+      armaOrder = c(0, 0),
+      include.mean = TRUE
+    ),
+    distribution.model = "std"
+  )
+  
+  fit <- ugarchfit(
+    spec = spec,
+    data = returns
+  )
+  
+  return(fit)
+}
 
 
-# Common vectors used by downstream scripts
-btc.returns  <- data0$BTC_log_returns
-j303.returns <- data0$Index_log_returns
-gpr.raw      <- data0$GPRD
+# 4. FINAL EGARCH MODELS
+
+btc.fit <- fit_egarch(data0$BTC_log_returns)
+
+j303.fit <- fit_egarch(data0$Index_log_returns)
 
 
-# 3. FINAL BITCOIN EGARCH MODEL
+# Canonical conditional volatility series
 
-btc.spec <- ugarchspec(
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1, 1)
-  ),
-  mean.model = list(
-    armaOrder = c(0, 0),
-    include.mean = TRUE
-  ),
-  distribution.model = "std"
-)
-
-btc.fit <- ugarchfit(
-  spec = btc.spec,
-  data = btc.returns
-)
-
-# Canonical Bitcoin conditional volatility series
 data0$BTC_Volatility <- as.numeric(
   sigma(btc.fit)
 )
 
-
-
-# 4. FINAL J303 EGARCH MODEL
-
-j303.spec <- ugarchspec(
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1, 1)
-  ),
-  mean.model = list(
-    armaOrder = c(0, 0),
-    include.mean = TRUE
-  ),
-  distribution.model = "std"
-)
-
-j303.fit <- ugarchfit(
-  spec = j303.spec,
-  data = j303.returns
-)
-
-# Canonical J303 conditional volatility series
 data0$J303_Volatility <- as.numeric(
   sigma(j303.fit)
 )
 
 
-# 5. BASELINE J303-BITCOIN VOLATILITY REGRESSION
+# 5. GPR K-MEANS THRESHOLD FUNCTION
 
-j303.btc <- lm(
-  J303_Volatility ~ BTC_Volatility,
-  data = data0
-)
-
-
-# 6. GPR K-MEANS CLUSTERING
-
-
-set.seed(123)
-
-kmeans.2 <- kmeans(
-  x = matrix(gpr.raw, ncol = 1),
-  centers = 2,
-  nstart = 100
-)
-
-# Store the cluster assignment
-data0$GPR_Cluster <- kmeans.2$cluster
-
-# Sort the two cluster centres from low to high
-GPR_cluster_centres <- sort(
-  as.numeric(kmeans.2$centers[, 1])
-)
-
-
-
-# 7. DATA-DRIVEN GPR THRESHOLD
-
-
-# The threshold is the midpoint between the two
-# k-means cluster centres.
-GPR_threshold <- mean(GPR_cluster_centres)
-
-# Classify observations using the calculated threshold
-data0$GPR_Regime <- ifelse(
-  data0$GPRD < GPR_threshold,
-  "Lower GPR",
-  "Elevated GPR"
-)
-
-# Make the ordering explicit
-data0$GPR_Regime <- factor(
-  data0$GPR_Regime,
-  levels = c("Lower GPR", "Elevated GPR")
-)
-
-
-
-# 8. DYNAMIC IDENTIFICATION OF GPR EVENT WINDOWS
-
-
-# 21-day centred moving average
-data0$GPR_MA <- rollmean(
-  data0$GPRD,
-  k = 21,
-  fill = NA,
-  align = "center"
-)
-
-
-
-# 8.1 Identify local maxima and minima
-
-
-gpr.ma <- data0$GPR_MA
-
-maxima <- which(
-  diff(sign(diff(gpr.ma))) == -2
-) + 1
-
-minima <- which(
-  diff(sign(diff(gpr.ma))) == 2
-) + 1
-
-# Remove observations where the moving average is NA
-maxima <- maxima[
-  !is.na(gpr.ma[maxima])
-]
-
-minima <- minima[
-  !is.na(gpr.ma[minima])
-]
-
-
-
-# 8.2 Construct GPR episodes
-
-
-episode.table <- data.frame()
-
-last.obs <- max(
-  which(!is.na(gpr.ma))
-)
-
-for (i in maxima) {
+get_gpr_threshold <- function(gpr) {
   
-  # Find the nearest local minimum before the peak
-  left.min <- minima[
-    minima < i
+  set.seed(123)
+  
+  kmeans.result <- kmeans(
+    x = matrix(gpr, ncol = 1),
+    centers = 2,
+    nstart = 100
+  )
+  
+  cluster.centres <- sort(
+    as.numeric(kmeans.result$centers[, 1])
+  )
+  
+  threshold <- mean(cluster.centres)
+  
+  return(threshold)
+}
+
+
+# 6. GPR THRESHOLDS
+
+GPRD_threshold <- get_gpr_threshold(
+  data0$GPRD
+)
+
+GPRD_ACT_threshold <- get_gpr_threshold(
+  data0$GPRD_ACT
+)
+
+GPRD_THREAT_threshold <- get_gpr_threshold(
+  data0$GPRD_THREAT
+)
+
+
+# 7. GPR EVENT IDENTIFICATION FUNCTION
+
+identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
+  
+  gpr <- data[[gpr_column]]
+  
+  gpr_ma <- rollmean(
+    gpr,
+    k = ma_days,
+    fill = NA,
+    align = "center"
+  )
+  
+  maxima <- which(
+    diff(sign(diff(gpr_ma))) == -2
+  ) + 1
+  
+  minima <- which(
+    diff(sign(diff(gpr_ma))) == 2
+  ) + 1
+  
+  maxima <- maxima[
+    !is.na(gpr_ma[maxima])
   ]
   
-  if (length(left.min) == 0) {
-    next
-  }
-  
-  left.min <- max(left.min)
-  
-  # Find the nearest local minimum after the peak
-  right.min <- minima[
-    minima > i
+  minima <- minima[
+    !is.na(gpr_ma[minima])
   ]
   
-  if (length(right.min) == 0) {
-    right.min <- last.obs
-  } else {
-    right.min <- min(right.min)
-  }
+  last.obs <- max(
+    which(!is.na(gpr_ma))
+  )
   
-  # GPR values
-  peak.gpr <- gpr.ma[i]
-  start.gpr <- gpr.ma[left.min]
-  end.gpr <- gpr.ma[right.min]
+  episode.table <- data.frame()
   
-  # Prominence of the episode
-  prominence <- peak.gpr -
-    max(start.gpr, end.gpr)
-  
-  episode.table <- rbind(
-    episode.table,
-    data.frame(
-      Peak_Date = data0$Date[i],
-      Peak_GPR = peak.gpr,
-      Start_Date = data0$Date[left.min],
-      End_Date = data0$Date[right.min],
-      Start_GPR = start.gpr,
-      End_GPR = end.gpr,
-      Prominence = prominence
+  for (i in maxima) {
+    
+    left.min <- minima[
+      minima < i
+    ]
+    
+    if (length(left.min) == 0) {
+      next
+    }
+    
+    left.min <- max(left.min)
+    
+    right.min <- minima[
+      minima > i
+    ]
+    
+    if (length(right.min) == 0) {
+      right.min <- last.obs
+    } else {
+      right.min <- min(right.min)
+    }
+    
+    peak.gpr <- gpr_ma[i]
+    start.gpr <- gpr_ma[left.min]
+    end.gpr <- gpr_ma[right.min]
+    
+    prominence <- peak.gpr -
+      max(start.gpr, end.gpr)
+    
+    episode.table <- rbind(
+      episode.table,
+      data.frame(
+        Peak_Date = data$Date[i],
+        Peak_GPR = peak.gpr,
+        Start_Date = data$Date[left.min],
+        End_Date = data$Date[right.min],
+        Start_GPR = start.gpr,
+        End_GPR = end.gpr,
+        Prominence = prominence
+      )
     )
-  )
+  }
+  
+  episode.table <- episode.table[
+    order(-episode.table$Prominence),
+  ]
+  
+  episode.table <- episode.table[
+    seq_len(min(5, nrow(episode.table))),
+  ]
+  
+  episode.table <- episode.table[
+    order(episode.table$Start_Date),
+  ]
+  
+  return(episode.table)
 }
 
 
+# 8. FINAL GPR EVENT WINDOWS
 
-# 8.3 Select the five most prominent events
-
-
-top.events <- episode.table[
-  order(-episode.table$Prominence),
-]
-
-# Keep the five most prominent events
-top.events <- top.events[
-  seq_len(min(5, nrow(top.events))),
-]
-
-# Put selected events into chronological order
-top.events <- top.events[
-  order(top.events$Start_Date),
-]
-
-
-
-# 9. CREATE FINAL EVENT WINDOW OBJECT
-
-
-event.names <- c(
-  "Russia-Ukraine (Crimea Crisis)",
-  "Paris Attacks",
-  "Russia-Ukraine Invasion",
-  "Israel-Hamas War",
-  "US-Israel-Iran Conflict"
+top.events <- identify_gpr_events(
+  data0,
+  "GPRD",
+  ma_days = 21
 )
-
-if (nrow(top.events) != length(event.names)) {
-  stop(
-    "The dynamic GPR procedure did not identify exactly five events."
-  )
-}
 
 events <- data.frame(
-  Event = event.names,
+  Event = c(
+    "Paris Attacks",
+    "Qatar Diplomatic Crisis",
+    "Turkey-Syria Escalation",
+    "Russia-Ukraine / Bakhmut",
+    "US-Israel-Iran Conflict"
+  ),
+  Peak_Date = top.events$Peak_Date,
+  Peak_GPR = top.events$Peak_GPR,
   Start_Date = top.events$Start_Date,
-  End_Date = top.events$End_Date
+  End_Date = top.events$End_Date,
+  Start_GPR = top.events$Start_GPR,
+  End_GPR = top.events$End_GPR,
+  Prominence = top.events$Prominence
 )
 

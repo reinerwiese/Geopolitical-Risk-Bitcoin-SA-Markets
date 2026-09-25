@@ -11,7 +11,7 @@ library(zoo)
 # 2. LOAD AND PREPARE DATA
 
 data0 <- read_excel(
-  "C:/Users/chris/OneDrive/Documents/Thesis/Thesis_Data.xlsx",
+  "Thesis_Data.xlsx",
   sheet = "Data",
   na = "NA"
 )

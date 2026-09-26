@@ -1,8 +1,6 @@
 #1 Load required packages
-library(readxl)
 library(dplyr)
 library(ggplot2)
-library(rugarch)
 
 library(FinTS)
 library(tseries)
@@ -12,85 +10,14 @@ library(lmtest)
 library(sandwich)
 library(car)
 
+source("0_Run_First.R")
 
-#2 Import and prepare data
-data <- read_excel(
-  "Thesis_Data.xlsx",
-  sheet = "Data",
-  na = "NA"
-)
-
-data <- na.omit(data)
-
-data$Date <- as.Date(data$Date)
-
-btc.returns <- data$BTC_log_returns
-j303.returns <- data$Index_log_returns
+data <- data0
 
 
 ###############################################################
 # Section A: Analysis by Geopolitical Risk Regime
 ###############################################################
-
-#3 Estimate Bitcoin conditional volatility
-btc.spec <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-btc.fit <- ugarchfit(
-  
-  spec = btc.spec,
-  
-  data = btc.returns
-  
-)
-
-data$BTC_Volatility <- as.numeric(
-  sigma(btc.fit)
-)
-
-
-#4 Estimate J303 conditional volatility
-j303.spec <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-j303.fit <- ugarchfit(
-  
-  spec = j303.spec,
-  
-  data = j303.returns
-  
-)
-
-data$J303_Volatility <- as.numeric(
-  sigma(j303.fit)
-)
-
 
 #5 Baseline relationship between Bitcoin and J303 conditional volatility
 overall.cor <- cor.test(
@@ -230,16 +157,7 @@ baseline.summary$Significant <- ifelse(
 print(baseline.summary)
 
 
-#8 Define geopolitical risk regimes
-data$GPR_Regime <- ifelse(
-  
-  data$GPRD < 153,
-  
-  "Lower GPR",
-  
-  "Elevated GPR"
-  
-)
+#8 Use geopolitical risk regimes from shared setup
 
 table(data$GPR_Regime)
 
@@ -615,9 +533,6 @@ round(z.statistic, 4)
 
 signif(p.value, 4)
 
-# Fisher z-test: z = 1.0649, p = 0.2869
-# No statistically significant difference exists between the correlations across geopolitical risk regimes
-
 
 #17 Interaction model testing whether the volatility relationship differs by regime
 data$GPR_Regime <- factor(
@@ -757,48 +672,13 @@ print(overall.summary)
 # Section B: Analysis During Major Geopolitical Events
 ###############################################################
 
-#20 Define event windows
-
-events <- data.frame(
-  
-  Event = c(
-    "Russia-Ukraine (Crimea Crisis)",
-    "Paris Attacks",
-    "Russia-Ukraine Invasion",
-    "Israel-Hamas War",
-    "US-Israel-Iran Conflict"
-  ),
-  
-  Start_Date = as.Date(c(
-    "2014-02-13",
-    "2015-10-30",
-    "2022-02-07",
-    "2023-09-20",
-    "2026-02-11"
-  )),
-  
-  End_Date = as.Date(c(
-    "2014-03-25",
-    "2015-12-17",
-    "2022-04-05",
-    "2023-11-17",
-    "2026-03-23"
-  ))
-  
-)
+#20 Use event windows from shared setup
 
 print(events)
 
-# Note: These are GPR-derived statistical event windows and do not represent
-# the exact real-world start and end dates of each geopolitical event.
-
-# Note: The available sample begins in March 2014, so the Crimea Crisis
-# event window is partially truncated by the available data.
-
-
 #21 Split data into event windows
 
-crimea <- subset(
+paris <- subset(
   
   data,
   
@@ -807,7 +687,7 @@ crimea <- subset(
   
 )
 
-paris <- subset(
+qatar <- subset(
   
   data,
   
@@ -816,7 +696,7 @@ paris <- subset(
   
 )
 
-ukraine <- subset(
+turkey.syria <- subset(
   
   data,
   
@@ -825,7 +705,7 @@ ukraine <- subset(
   
 )
 
-hamas <- subset(
+bakhmut <- subset(
   
   data,
   
@@ -848,51 +728,45 @@ iran <- subset(
 
 event.statistics <- data.frame(
   
-  Event = c(
-    "Russia-Ukraine (Crimea Crisis)",
-    "Paris Attacks",
-    "Russia-Ukraine Invasion",
-    "Israel-Hamas War",
-    "US-Israel-Iran Conflict"
-  ),
+  Event = events$Event,
   
   Sample_Size = c(
-    nrow(crimea),
     nrow(paris),
-    nrow(ukraine),
-    nrow(hamas),
+    nrow(qatar),
+    nrow(turkey.syria),
+    nrow(bakhmut),
     nrow(iran)
   ),
   
   Mean_GPR = c(
-    mean(crimea$GPRD),
     mean(paris$GPRD),
-    mean(ukraine$GPRD),
-    mean(hamas$GPRD),
+    mean(qatar$GPRD),
+    mean(turkey.syria$GPRD),
+    mean(bakhmut$GPRD),
     mean(iran$GPRD)
   ),
   
   SD_GPR = c(
-    sd(crimea$GPRD),
     sd(paris$GPRD),
-    sd(ukraine$GPRD),
-    sd(hamas$GPRD),
+    sd(qatar$GPRD),
+    sd(turkey.syria$GPRD),
+    sd(bakhmut$GPRD),
     sd(iran$GPRD)
   ),
   
   Mean_BTC_Volatility = c(
-    mean(crimea$BTC_Volatility),
     mean(paris$BTC_Volatility),
-    mean(ukraine$BTC_Volatility),
-    mean(hamas$BTC_Volatility),
+    mean(qatar$BTC_Volatility),
+    mean(turkey.syria$BTC_Volatility),
+    mean(bakhmut$BTC_Volatility),
     mean(iran$BTC_Volatility)
   ),
   
   SD_BTC_Volatility = c(
-    sd(crimea$BTC_Volatility),
     sd(paris$BTC_Volatility),
-    sd(ukraine$BTC_Volatility),
-    sd(hamas$BTC_Volatility),
+    sd(qatar$BTC_Volatility),
+    sd(turkey.syria$BTC_Volatility),
+    sd(bakhmut$BTC_Volatility),
     sd(iran$BTC_Volatility)
   )
   
@@ -908,14 +782,6 @@ print(event.statistics)
 
 #23 Correlation analysis during major geopolitical events
 
-cor.crimea <- cor.test(
-  
-  crimea$BTC_Volatility,
-  
-  crimea$J303_Volatility
-  
-)
-
 cor.paris <- cor.test(
   
   paris$BTC_Volatility,
@@ -924,19 +790,27 @@ cor.paris <- cor.test(
   
 )
 
-cor.ukraine <- cor.test(
+cor.qatar <- cor.test(
   
-  ukraine$BTC_Volatility,
+  qatar$BTC_Volatility,
   
-  ukraine$J303_Volatility
+  qatar$J303_Volatility
   
 )
 
-cor.hamas <- cor.test(
+cor.turkey.syria <- cor.test(
   
-  hamas$BTC_Volatility,
+  turkey.syria$BTC_Volatility,
   
-  hamas$J303_Volatility
+  turkey.syria$J303_Volatility
+  
+)
+
+cor.bakhmut <- cor.test(
+  
+  bakhmut$BTC_Volatility,
+  
+  bakhmut$J303_Volatility
   
 )
 
@@ -948,13 +822,13 @@ cor.iran <- cor.test(
   
 )
 
-cor.crimea
-
 cor.paris
 
-cor.ukraine
+cor.qatar
 
-cor.hamas
+cor.turkey.syria
+
+cor.bakhmut
 
 cor.iran
 
@@ -963,35 +837,29 @@ cor.iran
 
 event.correlation.summary <- data.frame(
   
-  Event = c(
-    "Russia-Ukraine (Crimea Crisis)",
-    "Paris Attacks",
-    "Russia-Ukraine Invasion",
-    "Israel-Hamas War",
-    "US-Israel-Iran Conflict"
-  ),
+  Event = events$Event,
   
   Sample_Size = c(
-    nrow(crimea),
     nrow(paris),
-    nrow(ukraine),
-    nrow(hamas),
+    nrow(qatar),
+    nrow(turkey.syria),
+    nrow(bakhmut),
     nrow(iran)
   ),
   
   Correlation = c(
-    unname(cor.crimea$estimate),
     unname(cor.paris$estimate),
-    unname(cor.ukraine$estimate),
-    unname(cor.hamas$estimate),
+    unname(cor.qatar$estimate),
+    unname(cor.turkey.syria$estimate),
+    unname(cor.bakhmut$estimate),
     unname(cor.iran$estimate)
   ),
   
   Correlation_P_Value = c(
-    cor.crimea$p.value,
     cor.paris$p.value,
-    cor.ukraine$p.value,
-    cor.hamas$p.value,
+    cor.qatar$p.value,
+    cor.turkey.syria$p.value,
+    cor.bakhmut$p.value,
     cor.iran$p.value
   )
   
@@ -1024,19 +892,6 @@ print(event.correlation.summary)
 
 #25 Event-specific regression models
 
-# Russia-Ukraine (Crimea Crisis)
-model.crimea <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = crimea
-  
-)
-
-summary(model.crimea)
-
-
 # Paris Attacks
 model.paris <- lm(
   
@@ -1050,30 +905,43 @@ model.paris <- lm(
 summary(model.paris)
 
 
-# Russia-Ukraine Invasion
-model.ukraine <- lm(
+# Qatar Diplomatic Crisis
+model.qatar <- lm(
   
   J303_Volatility ~
     BTC_Volatility,
   
-  data = ukraine
+  data = qatar
   
 )
 
-summary(model.ukraine)
+summary(model.qatar)
 
 
-# Israel-Hamas War
-model.hamas <- lm(
+# Turkey-Syria Escalation
+model.turkey.syria <- lm(
   
   J303_Volatility ~
     BTC_Volatility,
   
-  data = hamas
+  data = turkey.syria
   
 )
 
-summary(model.hamas)
+summary(model.turkey.syria)
+
+
+# Russia-Ukraine / Bakhmut
+model.bakhmut <- lm(
+  
+  J303_Volatility ~
+    BTC_Volatility,
+  
+  data = bakhmut
+  
+)
+
+summary(model.bakhmut)
 
 
 # US-Israel-Iran Conflict
@@ -1094,13 +962,13 @@ summary(model.iran)
 # Diagnostic plots
 par(mfrow = c(2,2))
 
-plot(model.crimea)
-
 plot(model.paris)
 
-plot(model.ukraine)
+plot(model.qatar)
 
-plot(model.hamas)
+plot(model.turkey.syria)
+
+plot(model.bakhmut)
 
 plot(model.iran)
 
@@ -1108,113 +976,102 @@ par(mfrow = c(1,1))
 
 
 # Jarque-Bera tests for residual normality
-jb.crimea <- jarque.bera.test(
-  residuals(model.crimea)
-)
-
 jb.paris <- jarque.bera.test(
   residuals(model.paris)
 )
 
-jb.ukraine <- jarque.bera.test(
-  residuals(model.ukraine)
+jb.qatar <- jarque.bera.test(
+  residuals(model.qatar)
 )
 
-jb.hamas <- jarque.bera.test(
-  residuals(model.hamas)
+jb.turkey.syria <- jarque.bera.test(
+  residuals(model.turkey.syria)
+)
+
+jb.bakhmut <- jarque.bera.test(
+  residuals(model.bakhmut)
 )
 
 jb.iran <- jarque.bera.test(
   residuals(model.iran)
 )
 
-jb.crimea
-
 jb.paris
 
-jb.ukraine
+jb.qatar
 
-jb.hamas
+jb.turkey.syria
+
+jb.bakhmut
 
 jb.iran
 
 
 # Durbin-Watson tests for residual autocorrelation
-dw.crimea <- dwtest(
-  model.crimea
-)
-
 dw.paris <- dwtest(
   model.paris
 )
 
-dw.ukraine <- dwtest(
-  model.ukraine
+dw.qatar <- dwtest(
+  model.qatar
 )
 
-dw.hamas <- dwtest(
-  model.hamas
+dw.turkey.syria <- dwtest(
+  model.turkey.syria
+)
+
+dw.bakhmut <- dwtest(
+  model.bakhmut
 )
 
 dw.iran <- dwtest(
   model.iran
 )
 
-dw.crimea
-
 dw.paris
 
-dw.ukraine
+dw.qatar
 
-dw.hamas
+dw.turkey.syria
+
+dw.bakhmut
 
 dw.iran
 
 
 # Breusch-Pagan tests for heteroskedasticity
-bp.crimea <- bptest(
-  model.crimea
-)
-
 bp.paris <- bptest(
   model.paris
 )
 
-bp.ukraine <- bptest(
-  model.ukraine
+bp.qatar <- bptest(
+  model.qatar
 )
 
-bp.hamas <- bptest(
-  model.hamas
+bp.turkey.syria <- bptest(
+  model.turkey.syria
+)
+
+bp.bakhmut <- bptest(
+  model.bakhmut
 )
 
 bp.iran <- bptest(
   model.iran
 )
 
-bp.crimea
-
 bp.paris
 
-bp.ukraine
+bp.qatar
 
-bp.hamas
+bp.turkey.syria
+
+bp.bakhmut
 
 bp.iran
 
 
 #27 Newey-West robust inference for event-specific regressions
-
-nw.crimea <- coeftest(
-  
-  model.crimea,
-  
-  vcov = NeweyWest(
-    model.crimea,
-    prewhite = FALSE
-  )
-  
-)
 
 nw.paris <- coeftest(
   
@@ -1227,23 +1084,34 @@ nw.paris <- coeftest(
   
 )
 
-nw.ukraine <- coeftest(
+nw.qatar <- coeftest(
   
-  model.ukraine,
+  model.qatar,
   
   vcov = NeweyWest(
-    model.ukraine,
+    model.qatar,
     prewhite = FALSE
   )
   
 )
 
-nw.hamas <- coeftest(
+nw.turkey.syria <- coeftest(
   
-  model.hamas,
+  model.turkey.syria,
   
   vcov = NeweyWest(
-    model.hamas,
+    model.turkey.syria,
+    prewhite = FALSE
+  )
+  
+)
+
+nw.bakhmut <- coeftest(
+  
+  model.bakhmut,
+  
+  vcov = NeweyWest(
+    model.bakhmut,
     prewhite = FALSE
   )
   
@@ -1260,13 +1128,13 @@ nw.iran <- coeftest(
   
 )
 
-nw.crimea
-
 nw.paris
 
-nw.ukraine
+nw.qatar
 
-nw.hamas
+nw.turkey.syria
+
+nw.bakhmut
 
 nw.iran
 
@@ -1275,68 +1143,62 @@ nw.iran
 
 event.overall <- data.frame(
   
-  Event = c(
-    "Russia-Ukraine (Crimea Crisis)",
-    "Paris Attacks",
-    "Russia-Ukraine Invasion",
-    "Israel-Hamas War",
-    "US-Israel-Iran Conflict"
-  ),
+  Event = events$Event,
   
   Sample_Size = c(
-    nrow(crimea),
     nrow(paris),
-    nrow(ukraine),
-    nrow(hamas),
+    nrow(qatar),
+    nrow(turkey.syria),
+    nrow(bakhmut),
     nrow(iran)
   ),
   
   Correlation = c(
-    unname(cor.crimea$estimate),
     unname(cor.paris$estimate),
-    unname(cor.ukraine$estimate),
-    unname(cor.hamas$estimate),
+    unname(cor.qatar$estimate),
+    unname(cor.turkey.syria$estimate),
+    unname(cor.bakhmut$estimate),
     unname(cor.iran$estimate)
   ),
   
   BTC_Coefficient = c(
-    coef(model.crimea)[2],
     coef(model.paris)[2],
-    coef(model.ukraine)[2],
-    coef(model.hamas)[2],
+    coef(model.qatar)[2],
+    coef(model.turkey.syria)[2],
+    coef(model.bakhmut)[2],
     coef(model.iran)[2]
   ),
   
   Adj_R2 = c(
-    summary(model.crimea)$adj.r.squared,
     summary(model.paris)$adj.r.squared,
-    summary(model.ukraine)$adj.r.squared,
-    summary(model.hamas)$adj.r.squared,
+    summary(model.qatar)$adj.r.squared,
+    summary(model.turkey.syria)$adj.r.squared,
+    summary(model.bakhmut)$adj.r.squared,
     summary(model.iran)$adj.r.squared
   ),
   
   Residual_SE = c(
-    summary(model.crimea)$sigma,
     summary(model.paris)$sigma,
-    summary(model.ukraine)$sigma,
-    summary(model.hamas)$sigma,
+    summary(model.qatar)$sigma,
+    summary(model.turkey.syria)$sigma,
+    summary(model.bakhmut)$sigma,
     summary(model.iran)$sigma
   ),
   
   NeweyWest_P_Value = c(
-    nw.crimea[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
     nw.paris[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],
-    nw.ukraine[
+    nw.qatar[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],
-    nw.hamas[
+    nw.turkey.syria[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.bakhmut[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],
@@ -1393,69 +1255,42 @@ print(event.overall)
 
 #29 Pairwise Fisher r-to-z tests comparing event correlations
 
-r.crimea <- cor.crimea$estimate
-
 r.paris <- cor.paris$estimate
 
-r.ukraine <- cor.ukraine$estimate
+r.qatar <- cor.qatar$estimate
 
-r.hamas <- cor.hamas$estimate
+r.turkey.syria <- cor.turkey.syria$estimate
+
+r.bakhmut <- cor.bakhmut$estimate
 
 r.iran <- cor.iran$estimate
 
 
-z.crimea.paris <- (
-  atanh(r.crimea) -
-    atanh(r.paris)
-) /
-  sqrt(
-    1 / (nrow(crimea) - 3) +
-      1 / (nrow(paris) - 3)
-  )
-
-z.crimea.ukraine <- (
-  atanh(r.crimea) -
-    atanh(r.ukraine)
-) /
-  sqrt(
-    1 / (nrow(crimea) - 3) +
-      1 / (nrow(ukraine) - 3)
-  )
-
-z.crimea.hamas <- (
-  atanh(r.crimea) -
-    atanh(r.hamas)
-) /
-  sqrt(
-    1 / (nrow(crimea) - 3) +
-      1 / (nrow(hamas) - 3)
-  )
-
-z.crimea.iran <- (
-  atanh(r.crimea) -
-    atanh(r.iran)
-) /
-  sqrt(
-    1 / (nrow(crimea) - 3) +
-      1 / (nrow(iran) - 3)
-  )
-
-z.paris.ukraine <- (
+z.paris.qatar <- (
   atanh(r.paris) -
-    atanh(r.ukraine)
+    atanh(r.qatar)
 ) /
   sqrt(
     1 / (nrow(paris) - 3) +
-      1 / (nrow(ukraine) - 3)
+      1 / (nrow(qatar) - 3)
   )
 
-z.paris.hamas <- (
+z.paris.turkey.syria <- (
   atanh(r.paris) -
-    atanh(r.hamas)
+    atanh(r.turkey.syria)
 ) /
   sqrt(
     1 / (nrow(paris) - 3) +
-      1 / (nrow(hamas) - 3)
+      1 / (nrow(turkey.syria) - 3)
+  )
+
+z.paris.bakhmut <- (
+  atanh(r.paris) -
+    atanh(r.bakhmut)
+) /
+  sqrt(
+    1 / (nrow(paris) - 3) +
+      1 / (nrow(bakhmut) - 3)
   )
 
 z.paris.iran <- (
@@ -1467,30 +1302,57 @@ z.paris.iran <- (
       1 / (nrow(iran) - 3)
   )
 
-z.ukraine.hamas <- (
-  atanh(r.ukraine) -
-    atanh(r.hamas)
+z.qatar.turkey.syria <- (
+  atanh(r.qatar) -
+    atanh(r.turkey.syria)
 ) /
   sqrt(
-    1 / (nrow(ukraine) - 3) +
-      1 / (nrow(hamas) - 3)
+    1 / (nrow(qatar) - 3) +
+      1 / (nrow(turkey.syria) - 3)
   )
 
-z.ukraine.iran <- (
-  atanh(r.ukraine) -
+z.qatar.bakhmut <- (
+  atanh(r.qatar) -
+    atanh(r.bakhmut)
+) /
+  sqrt(
+    1 / (nrow(qatar) - 3) +
+      1 / (nrow(bakhmut) - 3)
+  )
+
+z.qatar.iran <- (
+  atanh(r.qatar) -
     atanh(r.iran)
 ) /
   sqrt(
-    1 / (nrow(ukraine) - 3) +
+    1 / (nrow(qatar) - 3) +
       1 / (nrow(iran) - 3)
   )
 
-z.hamas.iran <- (
-  atanh(r.hamas) -
+z.turkey.syria.bakhmut <- (
+  atanh(r.turkey.syria) -
+    atanh(r.bakhmut)
+) /
+  sqrt(
+    1 / (nrow(turkey.syria) - 3) +
+      1 / (nrow(bakhmut) - 3)
+  )
+
+z.turkey.syria.iran <- (
+  atanh(r.turkey.syria) -
     atanh(r.iran)
 ) /
   sqrt(
-    1 / (nrow(hamas) - 3) +
+    1 / (nrow(turkey.syria) - 3) +
+      1 / (nrow(iran) - 3)
+  )
+
+z.bakhmut.iran <- (
+  atanh(r.bakhmut) -
+    atanh(r.iran)
+) /
+  sqrt(
+    1 / (nrow(bakhmut) - 3) +
       1 / (nrow(iran) - 3)
   )
 
@@ -1498,29 +1360,29 @@ z.hamas.iran <- (
 pairwise.z <- data.frame(
   
   Comparison = c(
-    "Crimea vs Paris",
-    "Crimea vs Ukraine",
-    "Crimea vs Hamas",
-    "Crimea vs Iran",
-    "Paris vs Ukraine",
-    "Paris vs Hamas",
-    "Paris vs Iran",
-    "Ukraine vs Hamas",
-    "Ukraine vs Iran",
-    "Hamas vs Iran"
+    "Paris Attacks vs Qatar Diplomatic Crisis",
+    "Paris Attacks vs Turkey-Syria Escalation",
+    "Paris Attacks vs Russia-Ukraine / Bakhmut",
+    "Paris Attacks vs US-Israel-Iran Conflict",
+    "Qatar Diplomatic Crisis vs Turkey-Syria Escalation",
+    "Qatar Diplomatic Crisis vs Russia-Ukraine / Bakhmut",
+    "Qatar Diplomatic Crisis vs US-Israel-Iran Conflict",
+    "Turkey-Syria Escalation vs Russia-Ukraine / Bakhmut",
+    "Turkey-Syria Escalation vs US-Israel-Iran Conflict",
+    "Russia-Ukraine / Bakhmut vs US-Israel-Iran Conflict"
   ),
   
   Z_Statistic = c(
-    z.crimea.paris,
-    z.crimea.ukraine,
-    z.crimea.hamas,
-    z.crimea.iran,
-    z.paris.ukraine,
-    z.paris.hamas,
+    z.paris.qatar,
+    z.paris.turkey.syria,
+    z.paris.bakhmut,
     z.paris.iran,
-    z.ukraine.hamas,
-    z.ukraine.iran,
-    z.hamas.iran
+    z.qatar.turkey.syria,
+    z.qatar.bakhmut,
+    z.qatar.iran,
+    z.turkey.syria.bakhmut,
+    z.turkey.syria.iran,
+    z.bakhmut.iran
   )
   
 )
@@ -1582,22 +1444,22 @@ comparison.plot <- data.frame(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine\n(Crimea)",
       "Paris\nAttacks",
-      "Russia-\nUkraine\nInvasion",
-      "Israel-\nHamas",
-      "US-Israel-\nIran"
+      "Qatar\nDiplomatic\nCrisis",
+      "Turkey-Syria\nEscalation",
+      "Russia-Ukraine\n/ Bakhmut",
+      "US-Israel-Iran\nConflict"
     ),
     
     levels = c(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine\n(Crimea)",
       "Paris\nAttacks",
-      "Russia-\nUkraine\nInvasion",
-      "Israel-\nHamas",
-      "US-Israel-\nIran"
+      "Qatar\nDiplomatic\nCrisis",
+      "Turkey-Syria\nEscalation",
+      "Russia-Ukraine\n/ Bakhmut",
+      "US-Israel-Iran\nConflict"
     )
     
   ),
@@ -1610,13 +1472,13 @@ comparison.plot <- data.frame(
     
     cor.elevated$estimate,
     
-    cor.crimea$estimate,
-    
     cor.paris$estimate,
     
-    cor.ukraine$estimate,
+    cor.qatar$estimate,
     
-    cor.hamas$estimate,
+    cor.turkey.syria$estimate,
+    
+    cor.bakhmut$estimate,
     
     cor.iran$estimate
     
@@ -1721,11 +1583,11 @@ ggplot(
       "Overall" = "Overall",
       "Lower GPR" = "Lower\nGPR",
       "Elevated GPR" = "Elevated\nGPR",
-      "Russia-Ukraine (Crimea)" = "Russia-Ukraine\n(Crimea)",
-      "Paris Attack" = "Paris\nAttack",
-      "Russia-Ukraine Invasion" = "Russia-Ukraine\nInvasion",
-      "Israel-Hamas" = "Israel-\nHamas",
-      "US-Israel-Iran" = "US-Israel-\nIran"
+      "Paris\nAttacks" = "Paris\nAttacks",
+      "Qatar\nDiplomatic\nCrisis" = "Qatar\nDiplomatic\nCrisis",
+      "Turkey-Syria\nEscalation" = "Turkey-Syria\nEscalation",
+      "Russia-Ukraine\n/ Bakhmut" = "Russia-Ukraine\n/ Bakhmut",
+      "US-Israel-Iran\nConflict" = "US-Israel-Iran\nConflict"
     )
   )
 
@@ -1739,22 +1601,21 @@ coefficient.plot <- data.frame(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine\n(Crimea)",
       "Paris\nAttacks",
-      "Russia-\nUkraine\nInvasion",
-      "Israel-\nHamas",
-      "US-Israel-\nIran"
+      "Qatar\nDiplomatic\nCrisis",
+      "Turkey-Syria\nEscalation",
+      "Russia-Ukraine\n/ Bakhmut",
+      "US-Israel-Iran\nConflict"
     ),
-    
     levels = c(
       "Overall",
       "Lower GPR",
       "Elevated GPR",
-      "Russia-\nUkraine\n(Crimea)",
       "Paris\nAttacks",
-      "Russia-\nUkraine\nInvasion",
-      "Israel-\nHamas",
-      "US-Israel-\nIran"
+      "Qatar\nDiplomatic\nCrisis",
+      "Turkey-Syria\nEscalation",
+      "Russia-Ukraine\n/ Bakhmut",
+      "US-Israel-Iran\nConflict"
     )
     
   ),
@@ -1767,13 +1628,13 @@ coefficient.plot <- data.frame(
     
     coef(model.elevated)[2],
     
-    coef(model.crimea)[2],
-    
     coef(model.paris)[2],
     
-    coef(model.ukraine)[2],
+    coef(model.qatar)[2],
     
-    coef(model.hamas)[2],
+    coef(model.turkey.syria)[2],
+    
+    coef(model.bakhmut)[2],
     
     coef(model.iran)[2]
     
@@ -1874,11 +1735,11 @@ ggplot(
       "Overall" = "Overall",
       "Lower GPR" = "Lower\nGPR",
       "Elevated GPR" = "Elevated\nGPR",
-      "Russia-Ukraine (Crimea)" = "Russia-Ukraine\n(Crimea)",
-      "Paris Attack" = "Paris\nAttack",
-      "Russia-Ukraine Invasion" = "Russia-Ukraine\nInvasion",
-      "Israel-Hamas" = "Israel-\nHamas",
-      "US-Israel-Iran" = "US-Israel-\nIran"
+      "Paris\nAttacks" = "Paris\nAttacks",
+      "Qatar\nDiplomatic\nCrisis" = "Qatar\nDiplomatic\nCrisis",
+      "Turkey-Syria\nEscalation" = "Turkey-Syria\nEscalation",
+      "Russia-Ukraine\n/ Bakhmut" = "Russia-Ukraine\n/ Bakhmut",
+      "US-Israel-Iran\nConflict" = "US-Israel-Iran\nConflict"
     )
   )
 
@@ -1888,23 +1749,14 @@ ggplot(
 overall.results <- data.frame(
   
   Analysis = c(
-    
     "Overall",
-    
     "Lower GPR",
-    
     "Elevated GPR",
-    
-    "Russia-Ukraine (Crimea Crisis)",
-    
     "Paris Attacks",
-    
-    "Russia-Ukraine Invasion",
-    
-    "Israel-Hamas War",
-    
+    "Qatar Diplomatic Crisis",
+    "Turkey-Syria Escalation",
+    "Russia-Ukraine / Bakhmut",
     "US-Israel-Iran Conflict"
-    
   ),
   
   Correlation = c(
@@ -1915,13 +1767,13 @@ overall.results <- data.frame(
     
     unname(cor.elevated$estimate),
     
-    unname(cor.crimea$estimate),
-    
     unname(cor.paris$estimate),
     
-    unname(cor.ukraine$estimate),
+    unname(cor.qatar$estimate),
     
-    unname(cor.hamas$estimate),
+    unname(cor.turkey.syria$estimate),
+    
+    unname(cor.bakhmut$estimate),
     
     unname(cor.iran$estimate)
     
@@ -1935,13 +1787,13 @@ overall.results <- data.frame(
     
     coef(model.elevated)[2],
     
-    coef(model.crimea)[2],
-    
     coef(model.paris)[2],
     
-    coef(model.ukraine)[2],
+    coef(model.qatar)[2],
     
-    coef(model.hamas)[2],
+    coef(model.turkey.syria)[2],
+    
+    coef(model.bakhmut)[2],
     
     coef(model.iran)[2]
     
@@ -1955,13 +1807,13 @@ overall.results <- data.frame(
     
     summary(model.elevated)$adj.r.squared,
     
-    summary(model.crimea)$adj.r.squared,
-    
     summary(model.paris)$adj.r.squared,
     
-    summary(model.ukraine)$adj.r.squared,
+    summary(model.qatar)$adj.r.squared,
     
-    summary(model.hamas)$adj.r.squared,
+    summary(model.turkey.syria)$adj.r.squared,
+    
+    summary(model.bakhmut)$adj.r.squared,
     
     summary(model.iran)$adj.r.squared
     
@@ -1984,22 +1836,22 @@ overall.results <- data.frame(
       "Pr(>|t|)"
     ],
     
-    nw.crimea[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    
     nw.paris[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],
     
-    nw.ukraine[
+    nw.qatar[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],
     
-    nw.hamas[
+    nw.turkey.syria[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    
+    nw.bakhmut[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],

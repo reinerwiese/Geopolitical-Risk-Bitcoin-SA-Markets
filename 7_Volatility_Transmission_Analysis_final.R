@@ -1,8 +1,6 @@
 #1 Load required packages
-library(readxl)
 library(dplyr)
 library(ggplot2)
-library(rugarch)
 
 library(FinTS)
 library(tseries)
@@ -12,85 +10,13 @@ library(lmtest)
 library(sandwich)
 library(car)
 
+source("0_Run_First.R")
 
-#2 Import and prepare data
-data <- read_excel(
-  "Thesis_Data.xlsx",
-  sheet = "Data",
-  na = "NA"
-)
-
-data <- na.omit(data)
-
-data$Date <- as.Date(data$Date)
-
-btc.returns <- data$BTC_log_returns
-j303.returns <- data$Index_log_returns
-
+data <- data0
 
 ###############################################################
 # Section A: Analysis by Geopolitical Risk Regime
 ###############################################################
-
-#3 Estimate Bitcoin conditional volatility
-btc.spec <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-btc.fit <- ugarchfit(
-  
-  spec = btc.spec,
-  
-  data = btc.returns
-  
-)
-
-data$BTC_Volatility <- as.numeric(
-  sigma(btc.fit)
-)
-
-
-#4 Estimate J303 conditional volatility
-j303.spec <- ugarchspec(
-  
-  variance.model = list(
-    model = "eGARCH",
-    garchOrder = c(1,1)
-  ),
-  
-  mean.model = list(
-    armaOrder = c(0,0),
-    include.mean = TRUE
-  ),
-  
-  distribution.model = "std"
-  
-)
-
-j303.fit <- ugarchfit(
-  
-  spec = j303.spec,
-  
-  data = j303.returns
-  
-)
-
-data$J303_Volatility <- as.numeric(
-  sigma(j303.fit)
-)
-
 
 #5 Baseline relationship between Bitcoin and J303 conditional volatility
 overall.cor <- cor.test(
@@ -757,44 +683,9 @@ print(overall.summary)
 # Section B: Analysis During Major Geopolitical Events
 ###############################################################
 
-#20 Define event windows
-
-events <- data.frame(
-  
-  Event = c(
-    "Russia-Ukraine (Crimea Crisis)",
-    "Paris Attacks",
-    "Russia-Ukraine Invasion",
-    "Israel-Hamas War",
-    "US-Israel-Iran Conflict"
-  ),
-  
-  Start_Date = as.Date(c(
-    "2014-02-13",
-    "2015-10-30",
-    "2022-02-07",
-    "2023-09-20",
-    "2026-02-11"
-  )),
-  
-  End_Date = as.Date(c(
-    "2014-03-25",
-    "2015-12-17",
-    "2022-04-05",
-    "2023-11-17",
-    "2026-03-23"
-  ))
-  
-)
+#20 Use event windows from shared setup
 
 print(events)
-
-# Note: These are GPR-derived statistical event windows and do not represent
-# the exact real-world start and end dates of each geopolitical event.
-
-# Note: The available sample begins in March 2014, so the Crimea Crisis
-# event window is partially truncated by the available data.
-
 
 #21 Split data into event windows
 

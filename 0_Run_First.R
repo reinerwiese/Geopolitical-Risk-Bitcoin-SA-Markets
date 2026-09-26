@@ -1,5 +1,6 @@
 # Run this script before any other script
 
+
 # 1. LOAD PACKAGES
 
 library(readxl)
@@ -11,7 +12,7 @@ library(zoo)
 # 2. LOAD AND PREPARE DATA
 
 data0 <- read_excel(
-  "Thesis_Data.xlsx",
+ "Thesis_Data.xlsx",
   sheet = "Data",
   na = "NA"
 )
@@ -48,9 +49,13 @@ fit_egarch <- function(returns) {
 
 # 4. FINAL EGARCH MODELS
 
-btc.fit <- fit_egarch(data0$BTC_log_returns)
+btc.fit <- fit_egarch(
+  data0$BTC_log_returns
+)
 
-j303.fit <- fit_egarch(data0$Index_log_returns)
+j303.fit <- fit_egarch(
+  data0$Index_log_returns
+)
 
 
 # Canonical conditional volatility series
@@ -101,7 +106,47 @@ GPRD_THREAT_threshold <- get_gpr_threshold(
 )
 
 
-# 7. GPR EVENT IDENTIFICATION FUNCTION
+# 7. GPR REGIME FUNCTION
+
+get_gpr_regime <- function(gpr, threshold) {
+  
+  regime <- ifelse(
+    gpr < threshold,
+    "Lower GPR",
+    "Elevated GPR"
+  )
+  
+  regime <- factor(
+    regime,
+    levels = c(
+      "Lower GPR",
+      "Elevated GPR"
+    )
+  )
+  
+  return(regime)
+}
+
+
+# 8. GPR REGIMES
+
+data0$GPR_Regime <- get_gpr_regime(
+  data0$GPRD,
+  GPRD_threshold
+)
+
+data0$GPRD_ACT_Regime <- get_gpr_regime(
+  data0$GPRD_ACT,
+  GPRD_ACT_threshold
+)
+
+data0$GPRD_THREAT_Regime <- get_gpr_regime(
+  data0$GPRD_THREAT,
+  GPRD_THREAT_threshold
+)
+
+
+# 9. GPR EVENT IDENTIFICATION FUNCTION
 
 identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
   
@@ -195,7 +240,7 @@ identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
 }
 
 
-# 8. FINAL GPR EVENT WINDOWS
+# 10. FINAL GPR EVENT WINDOWS
 
 top.events <- identify_gpr_events(
   data0,

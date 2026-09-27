@@ -12,7 +12,7 @@ library(zoo)
 # 2. LOAD AND PREPARE DATA
 
 data0 <- read_excel(
- "Thesis_Data.xlsx",
+  "Thesis_Data.xlsx",
   sheet = "Data",
   na = "NA"
 )
@@ -240,28 +240,310 @@ identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
 }
 
 
-# 10. FINAL GPR EVENT WINDOWS
+# 10. GPR EVENT WINDOWS
 
-top.events <- identify_gpr_events(
+GPRD_events_11 <- identify_gpr_events(
+  data0,
+  "GPRD",
+  ma_days = 11
+)
+
+GPRD_events_21 <- identify_gpr_events(
   data0,
   "GPRD",
   ma_days = 21
 )
 
-events <- data.frame(
-  Event = c(
-    "Paris Attacks",
-    "Qatar Diplomatic Crisis",
-    "Turkey-Syria Escalation",
-    "Russia-Ukraine / Bakhmut",
-    "US-Israel-Iran Conflict"
+GPRD_events_31 <- identify_gpr_events(
+  data0,
+  "GPRD",
+  ma_days = 31
+)
+
+
+GPRD_ACT_events_11 <- identify_gpr_events(
+  data0,
+  "GPRD_ACT",
+  ma_days = 11
+)
+
+GPRD_ACT_events_21 <- identify_gpr_events(
+  data0,
+  "GPRD_ACT",
+  ma_days = 21
+)
+
+GPRD_ACT_events_31 <- identify_gpr_events(
+  data0,
+  "GPRD_ACT",
+  ma_days = 31
+)
+
+
+GPRD_THREAT_events_11 <- identify_gpr_events(
+  data0,
+  "GPRD_THREAT",
+  ma_days = 11
+)
+
+GPRD_THREAT_events_21 <- identify_gpr_events(
+  data0,
+  "GPRD_THREAT",
+  ma_days = 21
+)
+
+GPRD_THREAT_events_31 <- identify_gpr_events(
+  data0,
+  "GPRD_THREAT",
+  ma_days = 31
+)
+
+# 11. EVENT RESULTS
+
+format_event_results <- function(events, measure, smoothing) {
+  
+  events$Measure <- measure
+  events$Smoothing <- smoothing
+  
+  events <- events[
+    ,
+    c(
+      "Measure",
+      "Smoothing",
+      "Peak_Date",
+      "Peak_GPR",
+      "Start_Date",
+      "End_Date",
+      "Start_GPR",
+      "End_GPR",
+      "Prominence"
+    )
+  ]
+  
+  return(events)
+}
+
+
+event_results <- bind_rows(
+  
+  format_event_results(
+    GPRD_events_11,
+    "GPRD",
+    11
   ),
-  Peak_Date = top.events$Peak_Date,
-  Peak_GPR = top.events$Peak_GPR,
-  Start_Date = top.events$Start_Date,
-  End_Date = top.events$End_Date,
-  Start_GPR = top.events$Start_GPR,
-  End_GPR = top.events$End_GPR,
-  Prominence = top.events$Prominence
+  
+  format_event_results(
+    GPRD_events_21,
+    "GPRD",
+    21
+  ),
+  
+  format_event_results(
+    GPRD_events_31,
+    "GPRD",
+    31
+  ),
+  
+  format_event_results(
+    GPRD_ACT_events_11,
+    "GPRD_ACT",
+    11
+  ),
+  
+  format_event_results(
+    GPRD_ACT_events_21,
+    "GPRD_ACT",
+    21
+  ),
+  
+  format_event_results(
+    GPRD_ACT_events_31,
+    "GPRD_ACT",
+    31
+  ),
+  
+  format_event_results(
+    GPRD_THREAT_events_11,
+    "GPRD_THREAT",
+    11
+  ),
+  
+  format_event_results(
+    GPRD_THREAT_events_21,
+    "GPRD_THREAT",
+    21
+  ),
+  
+  format_event_results(
+    GPRD_THREAT_events_31,
+    "GPRD_THREAT",
+    31
+  )
+) %>%
+  arrange(
+    Measure,
+    Smoothing,
+    Peak_Date
+  )
+
+# 12. HISTORICAL GPR EVENTS
+
+historical_events <- data.frame(
+  
+  Event = c(
+    "Crimea",
+    "Russia-Ukraine",
+    "Suruc",
+    "Paris",
+    "Aleppo-Syria",
+    "Qatar",
+    "North Korea",
+    "India-Pakistan",
+    "Saudi-US-Iran",
+    "US-Iran",
+    "Israel-Gaza",
+    "Russia-Ukraine",
+    "Bakhmut",
+    "Israel-Hamas",
+    "Israel-Iran",
+    "Iran"
+  ),
+  
+  Start_Date = as.Date(c(
+    "2014-03-07",
+    "2015-01-20",
+    "2015-07-20",
+    "2015-11-13",
+    "2016-12-01",
+    "2017-06-05",
+    "2017-07-04",
+    "2019-02-14",
+    "2019-09-14",
+    "2020-01-03",
+    "2021-05-10",
+    "2022-02-24",
+    "2023-05-01",
+    "2023-10-07",
+    "2025-06-13",
+    "2026-02-28"
+  )),
+  
+  End_Date = as.Date(c(
+    "2014-03-25",
+    "2015-02-18",
+    "2015-07-27",
+    "2015-11-30",
+    "2016-12-19",
+    "2017-06-29",
+    "2017-07-28",
+    "2019-03-15",
+    "2019-10-08",
+    "2020-01-13",
+    "2021-05-21",
+    "2022-03-16",
+    "2023-05-31",
+    "2023-11-21",
+    "2025-06-30",
+    "2026-05-13"
+  ))
+)
+
+
+# 13. MATCH GPR EVENTS TO HISTORICAL EVENTS
+
+match_historical_events <- function(event_results, historical_events) {
+  
+  matched_events <- lapply(seq_len(nrow(event_results)), function(i) {
+    
+    event <- event_results[i, ]
+    
+    historical_events$Overlap_Days <- pmax(
+      0,
+      as.numeric(
+        pmin(event$End_Date, historical_events$End_Date) -
+          pmax(event$Start_Date, historical_events$Start_Date)
+      ) + 1
+    )
+    
+    overlap <- historical_events[
+      historical_events$Overlap_Days > 0,
+    ]
+    
+    measure_code <- case_when(
+      event$Measure == "GPRD" ~ "G",
+      event$Measure == "GPRD_ACT" ~ "A",
+      event$Measure == "GPRD_THREAT" ~ "T",
+      TRUE ~ NA_character_
+    )
+    
+    event_code <- paste0(
+      measure_code,
+      event$Smoothing
+    )
+    
+    if (nrow(overlap) == 0) {
+      
+      data.frame(
+        Event = paste0("Unknown ", event_code),
+        Start_Date = event$Start_Date,
+        End_Date = event$End_Date,
+        Peak_Date = event$Peak_Date,
+        Measure = event$Measure,
+        Smoothing = event$Smoothing,
+        Peak_GPR = event$Peak_GPR,
+        Prominence = event$Prominence
+      )
+      
+    } else {
+      
+      max_overlap <- max(overlap$Overlap_Days)
+      
+      selected_event <- overlap[
+        overlap$Overlap_Days == max_overlap,
+      ][1, ]
+      
+      data.frame(
+        Event = paste0(
+          selected_event$Event,
+          " ",
+          event_code
+        ),
+        Start_Date = event$Start_Date,
+        End_Date = event$End_Date,
+        Peak_Date = event$Peak_Date,
+        Measure = event$Measure,
+        Smoothing = event$Smoothing,
+        Peak_GPR = event$Peak_GPR,
+        Prominence = event$Prominence
+      )
+    }
+  })
+  
+  matched_events <- as.data.frame(
+    do.call(rbind, matched_events)
+  )
+  
+  event_counts <- table(matched_events$Event)
+  
+  repeated_events <- names(event_counts[event_counts > 1])
+  
+  for (event_name in repeated_events) {
+    
+    rows <- which(matched_events$Event == event_name)
+    
+    matched_events$Event[rows] <- paste0(
+      event_name,
+      "-",
+      seq_along(rows)
+    )
+  }
+  
+  return(matched_events)
+}
+
+
+event_matches <- match_historical_events(
+  event_results,
+  historical_events
 )
 

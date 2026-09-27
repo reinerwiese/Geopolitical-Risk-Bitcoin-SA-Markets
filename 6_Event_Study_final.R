@@ -1,4 +1,5 @@
 #1 Load required packages
+
 library(dplyr)
 library(ggplot2)
 
@@ -10,522 +11,449 @@ library(lmtest)
 library(sandwich)
 library(car)
 
-library(pracma)
-library(strucchange)
 library(zoo)
 
-source("0_Run_First.R")
+
+#2 Load data
 
 data <- data0
 
-###############################################################
-# Section B: Event Study Analysis
-###############################################################
-
-#10 Create event datasets from shared setup
-
-paris <- subset(
-  data,
-  Date >= events$Start_Date[1] &
-    Date <= events$End_Date[1]
-)
-
-qatar <- subset(
-  data,
-  Date >= events$Start_Date[2] &
-    Date <= events$End_Date[2]
-)
-
-turkey.syria <- subset(
-  data,
-  Date >= events$Start_Date[3] &
-    Date <= events$End_Date[3]
-)
-
-bakhmut <- subset(
-  data,
-  Date >= events$Start_Date[4] &
-    Date <= events$End_Date[4]
-)
-
-iran <- subset(
-  data,
-  Date >= events$Start_Date[5] &
-    Date <= events$End_Date[5]
-)
-
-#11 Event summary statistics
-
-event.statistics <- data.frame(
-  
-  Event = events$Event,
-  
-  Sample_Size = c(
-    nrow(paris),
-    nrow(qatar),
-    nrow(turkey.syria),
-    nrow(bakhmut),
-    nrow(iran)
-  ),
-  
-  Mean_GPR = c(
-    mean(paris$GPRD),
-    mean(qatar$GPRD),
-    mean(turkey.syria$GPRD),
-    mean(bakhmut$GPRD),
-    mean(iran$GPRD)
-  ),
-  
-  SD_GPR = c(
-    sd(paris$GPRD),
-    sd(qatar$GPRD),
-    sd(turkey.syria$GPRD),
-    sd(bakhmut$GPRD),
-    sd(iran$GPRD)
-  ),
-  
-  Mean_BTC_Volatility = c(
-    mean(paris$BTC_Volatility),
-    mean(qatar$BTC_Volatility),
-    mean(turkey.syria$BTC_Volatility),
-    mean(bakhmut$BTC_Volatility),
-    mean(iran$BTC_Volatility)
-  ),
-  
-  SD_BTC_Volatility = c(
-    sd(paris$BTC_Volatility),
-    sd(qatar$BTC_Volatility),
-    sd(turkey.syria$BTC_Volatility),
-    sd(bakhmut$BTC_Volatility),
-    sd(iran$BTC_Volatility)
-  )
-  
-)
-
-event.statistics[-1] <- round(
-  event.statistics[-1],
-  4
-)
-
-event.statistics
-
-
-#12 Correlation analysis
-
-cor.paris <- cor.test(
-  paris$BTC_Volatility,
-  paris$GPRD
-)
-
-cor.qatar <- cor.test(
-  qatar$BTC_Volatility,
-  qatar$GPRD
-)
-
-cor.turkey.syria <- cor.test(
-  turkey.syria$BTC_Volatility,
-  turkey.syria$GPRD
-)
-
-cor.bakhmut <- cor.test(
-  bakhmut$BTC_Volatility,
-  bakhmut$GPRD
-)
-
-cor.iran <- cor.test(
-  iran$BTC_Volatility,
-  iran$GPRD
-)
-
-cor.paris
-
-cor.qatar
-
-cor.turkey.syria
-
-cor.bakhmut
-
-cor.iran
-
-
-#13 Event comparison
-
-event.summary <- data.frame(
-  
-  Event = events$Event,
-  
-  Sample_Size = c(
-    nrow(paris),
-    nrow(qatar),
-    nrow(turkey.syria),
-    nrow(bakhmut),
-    nrow(iran)
-  ),
-  
-  Mean_GPR = c(
-    mean(paris$GPRD),
-    mean(qatar$GPRD),
-    mean(turkey.syria$GPRD),
-    mean(bakhmut$GPRD),
-    mean(iran$GPRD)
-  ),
-  
-  Mean_BTC_Volatility = c(
-    mean(paris$BTC_Volatility),
-    mean(qatar$BTC_Volatility),
-    mean(turkey.syria$BTC_Volatility),
-    mean(bakhmut$BTC_Volatility),
-    mean(iran$BTC_Volatility)
-  ),
-  
-  Correlation = c(
-    unname(cor.paris$estimate),
-    unname(cor.qatar$estimate),
-    unname(cor.turkey.syria$estimate),
-    unname(cor.bakhmut$estimate),
-    unname(cor.iran$estimate)
-  ),
-  
-  Correlation_P_Value = c(
-    cor.paris$p.value,
-    cor.qatar$p.value,
-    cor.turkey.syria$p.value,
-    cor.bakhmut$p.value,
-    cor.iran$p.value
-  )
-  
-)
-
-
-#14 Format event comparison table
-
-event.summary$Mean_GPR <-
-  round(event.summary$Mean_GPR,2)
-
-event.summary$Mean_BTC_Volatility <-
-  round(event.summary$Mean_BTC_Volatility,5)
-
-event.summary$Correlation <-
-  round(event.summary$Correlation,4)
-
-event.summary$Correlation_P_Value <-
-  signif(event.summary$Correlation_P_Value,4)
-
-event.summary$Significant <- ifelse(
-  event.summary$Correlation_P_Value < 0.05,
-  "Yes",
-  "No"
-)
-
-print(event.summary)
-
 
 ###############################################################
-# Section C: Event Regression Analysis
+# Section A: Event Study Analysis
 ###############################################################
 
-#15 Event-specific regression models
+#3 Event study function
 
-# Paris Attacks
-model.paris <- lm(
-  BTC_Volatility ~ GPRD,
-  data = paris
-)
-
-summary(model.paris)
-
-# Qatar Diplomatic Crisis
-model.qatar <- lm(
-  BTC_Volatility ~ GPRD,
-  data = qatar
-)
-
-summary(model.qatar)
-
-# Turkey-Syria Escalation
-model.turkey.syria <- lm(
-  BTC_Volatility ~ GPRD,
-  data = turkey.syria
-)
-
-summary(model.turkey.syria)
-
-# Russia-Ukraine / Bakhmut
-model.bakhmut <- lm(
-  BTC_Volatility ~ GPRD,
-  data = bakhmut
-)
-
-summary(model.bakhmut)
-
-# US-Israel-Iran Conflict
-model.iran <- lm(
-  BTC_Volatility ~ GPRD,
-  data = iran
-)
-
-summary(model.iran)
-
-#16 Regression diagnostic tests
-
-# Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(model.paris)
-
-plot(model.qatar)
-
-plot(model.turkey.syria)
-
-plot(model.bakhmut)
-
-plot(model.iran)
-
-par(mfrow = c(1,1))
-
-
-# Jarque-Bera tests
-jb.paris <- jarque.bera.test(
-  residuals(model.paris)
-)
-
-jb.qatar <- jarque.bera.test(
-  residuals(model.qatar)
-)
-
-jb.turkey.syria <- jarque.bera.test(
-  residuals(model.turkey.syria)
-)
-
-jb.bakhmut <- jarque.bera.test(
-  residuals(model.bakhmut)
-)
-
-jb.iran <- jarque.bera.test(
-  residuals(model.iran)
-)
-
-jb.paris
-jb.qatar
-jb.turkey.syria
-jb.bakhmut
-jb.iran
-
-
-# Durbin-Watson tests
-dw.paris <- dwtest(model.paris)
-
-dw.qatar <- dwtest(model.qatar)
-
-dw.turkey.syria <- dwtest(model.turkey.syria)
-
-dw.bakhmut <- dwtest(model.bakhmut)
-
-dw.iran <- dwtest(model.iran)
-
-dw.paris
-dw.qatar
-dw.turkey.syria
-dw.bakhmut
-dw.iran
-
-
-# Breusch-Pagan tests
-bp.paris <- bptest(model.paris)
-
-bp.qatar <- bptest(model.qatar)
-
-bp.turkey.syria <- bptest(model.turkey.syria)
-
-bp.bakhmut <- bptest(model.bakhmut)
-
-bp.iran <- bptest(model.iran)
-
-bp.paris
-bp.qatar
-bp.turkey.syria
-bp.bakhmut
-bp.iran
-
-
-#17 Newey-West robust inference
-
-# Paris Attacks
-nw.paris <- coeftest(
+run_event_study <- function(smoothing_window) {
   
-  model.paris,
-  
-  vcov = NeweyWest(
-    
-    model.paris,
-    
-    prewhite = FALSE
-    
+  events <- subset(
+    event_matches,
+    Smoothing == smoothing_window
   )
   
-)
-
-# Qatar Diplomatic Crisis
-nw.qatar <- coeftest(
   
-  model.qatar,
+  # Create event datasets
   
-  vcov = NeweyWest(
-    
-    model.qatar,
-    
-    prewhite = FALSE
-    
+  event_data <- lapply(
+    seq_len(nrow(events)),
+    function(i) {
+      
+      event <- events[i, ]
+      
+      subset(
+        data,
+        Date >= event$Start_Date &
+          Date <= event$End_Date
+      )
+      
+    }
   )
   
-)
-
-# Turkey-Syria Escalation
-nw.turkey.syria <- coeftest(
+  names(event_data) <- events$Event
   
-  model.turkey.syria,
   
-  vcov = NeweyWest(
-    
-    model.turkey.syria,
-    
-    prewhite = FALSE
-    
+  # Event summary statistics
+  
+  event.statistics <- do.call(
+    rbind,
+    lapply(
+      seq_len(nrow(events)),
+      function(i) {
+        
+        data.frame(
+          Event = events$Event[i],
+          Measure = events$Measure[i],
+          Sample_Size = nrow(event_data[[i]]),
+          Mean_GPR =
+            mean(event_data[[i]][[events$Measure[i]]]),
+          SD_GPR =
+            sd(event_data[[i]][[events$Measure[i]]]),
+          Mean_BTC_Volatility =
+            mean(event_data[[i]]$BTC_Volatility),
+          SD_BTC_Volatility =
+            sd(event_data[[i]]$BTC_Volatility)
+        )
+        
+      }
+    )
   )
   
-)
-
-# Russia-Ukraine / Bakhmut
-nw.bakhmut <- coeftest(
+  event.statistics[-c(1, 2)] <-
+    round(event.statistics[-c(1, 2)], 4)
   
-  model.bakhmut,
   
-  vcov = NeweyWest(
-    
-    model.bakhmut,
-    
-    prewhite = FALSE
-    
+  # Correlation analysis
+  
+  event.correlations <- do.call(
+    rbind,
+    lapply(
+      seq_len(nrow(events)),
+      function(i) {
+        
+        correlation <- cor.test(
+          event_data[[i]]$BTC_Volatility,
+          event_data[[i]][[events$Measure[i]]]
+        )
+        
+        data.frame(
+          Event = events$Event[i],
+          Measure = events$Measure[i],
+          Correlation = unname(correlation$estimate),
+          Correlation_P_Value = correlation$p.value
+        )
+        
+      }
+    )
   )
   
-)
-
-# US-Israel-Iran Conflict
-nw.iran <- coeftest(
+  event.correlations$Correlation <-
+    round(event.correlations$Correlation, 4)
   
-  model.iran,
+  event.correlations$Correlation_P_Value <-
+    signif(event.correlations$Correlation_P_Value, 4)
   
-  vcov = NeweyWest(
-    
-    model.iran,
-    
-    prewhite = FALSE
-    
+  event.correlations$Significant <- ifelse(
+    event.correlations$Correlation_P_Value < 0.05,
+    "Yes",
+    "No"
   )
   
-)
-
-nw.paris
-nw.qatar
-nw.turkey.syria
-nw.bakhmut
-nw.iran
-
-
-#18 Event regression comparison
-event.regression <- data.frame(
   
-  Event = events$Event,
+  # Event-specific regression models
   
-  Sample_Size = c(
-    nrow(paris),
-    nrow(qatar),
-    nrow(turkey.syria),
-    nrow(bakhmut),
-    nrow(iran)
-  ),
-  
-  Correlation = c(
-    unname(cor.paris$estimate),
-    unname(cor.qatar$estimate),
-    unname(cor.turkey.syria$estimate),
-    unname(cor.bakhmut$estimate),
-    unname(cor.iran$estimate)
-  ),
-  
-  Intercept = c(
-    coef(model.paris)[1],
-    coef(model.qatar)[1],
-    coef(model.turkey.syria)[1],
-    coef(model.bakhmut)[1],
-    coef(model.iran)[1]
-  ),
-  
-  GPR_Coefficient = c(
-    coef(model.paris)[2],
-    coef(model.qatar)[2],
-    coef(model.turkey.syria)[2],
-    coef(model.bakhmut)[2],
-    coef(model.iran)[2]
-  ),
-  
-  Adj_R2 = c(
-    summary(model.paris)$adj.r.squared,
-    summary(model.qatar)$adj.r.squared,
-    summary(model.turkey.syria)$adj.r.squared,
-    summary(model.bakhmut)$adj.r.squared,
-    summary(model.iran)$adj.r.squared
-  ),
-  
-  Residual_SE = c(
-    summary(model.paris)$sigma,
-    summary(model.qatar)$sigma,
-    summary(model.turkey.syria)$sigma,
-    summary(model.bakhmut)$sigma,
-    summary(model.iran)$sigma
-  ),
-  
-  NeweyWest_P_Value = c(
-    nw.paris["GPRD","Pr(>|t|)"],
-    nw.qatar["GPRD","Pr(>|t|)"],
-    nw.turkey.syria["GPRD","Pr(>|t|)"],
-    nw.bakhmut["GPRD","Pr(>|t|)"],
-    nw.iran["GPRD","Pr(>|t|)"]
+  event.models <- lapply(
+    seq_len(nrow(events)),
+    function(i) {
+      
+      lm(
+        as.formula(
+          paste(
+            "BTC_Volatility ~",
+            events$Measure[i]
+          )
+        ),
+        data = event_data[[i]]
+      )
+      
+    }
   )
   
+  names(event.models) <- events$Event
+  
+  
+  # Regression diagnostic tests
+  
+  event.diagnostics <- do.call(
+    rbind,
+    lapply(
+      seq_along(event.models),
+      function(i) {
+        
+        model <- event.models[[i]]
+        
+        data.frame(
+          Event = names(event.models)[i],
+          Jarque_Bera_P_Value =
+            jarque.bera.test(
+              residuals(model)
+            )$p.value,
+          Breusch_Pagan_P_Value =
+            bptest(model)$p.value,
+          Durbin_Watson_P_Value =
+            dwtest(model)$p.value
+        )
+        
+      }
+    )
+  )
+  
+  rownames(event.diagnostics) <- NULL
+  
+  
+  # Newey-West robust inference
+  
+  event.nw <- lapply(
+    event.models,
+    function(model) {
+      
+      coeftest(
+        model,
+        vcov = NeweyWest(
+          model,
+          prewhite = FALSE
+        )
+      )
+      
+    }
+  )
+  
+  names(event.nw) <- names(event.models)
+  
+  
+  # Event regression comparison
+  
+  event.regression <- do.call(
+    rbind,
+    lapply(
+      seq_along(event.models),
+      function(i) {
+        
+        model <- event.models[[i]]
+        
+        data.frame(
+          Event = names(event.models)[i],
+          Sample_Size = nrow(event_data[[i]]),
+          Correlation = event.correlations$Correlation[i],
+          GPR_Coefficient = coef(model)[2],
+          Adj_R2 = summary(model)$adj.r.squared,
+          Residual_SE = summary(model)$sigma,
+          NeweyWest_P_Value =
+            event.nw[[i]][2, "Pr(>|t|)"]
+        )
+        
+      }
+    )
+  )
+  
+  event.regression$Correlation <-
+    round(event.regression$Correlation, 4)
+  
+  event.regression$GPR_Coefficient <-
+    signif(event.regression$GPR_Coefficient, 4)
+  
+  event.regression$Adj_R2 <-
+    round(event.regression$Adj_R2, 4)
+  
+  event.regression$Residual_SE <-
+    round(event.regression$Residual_SE, 5)
+  
+  event.regression$NeweyWest_P_Value <-
+    signif(event.regression$NeweyWest_P_Value, 4)
+  
+  event.regression$Significant <- ifelse(
+    event.regression$NeweyWest_P_Value < 0.05,
+    "Yes",
+    "No"
+  )
+  
+  rownames(event.regression) <- NULL
+  
+  
+  list(
+    events = events,
+    event_data = event_data,
+    statistics = event.statistics,
+    correlations = event.correlations,
+    models = event.models,
+    diagnostics = event.diagnostics,
+    nw = event.nw,
+    regression = event.regression
+  )
+}
+
+
+#4 Run event study for all smoothing windows
+
+event.results_11 <- run_event_study(11)
+
+event.results_21 <- run_event_study(21)
+
+event.results_31 <- run_event_study(31)
+
+
+#5 11-day results
+
+event.results_11$events
+
+event.results_11$statistics
+
+event.results_11$correlations
+
+event.results_11$diagnostics
+
+event.results_11$regression
+
+
+#6 21-day results
+
+event.results_21$events
+
+event.results_21$statistics
+
+event.results_21$correlations
+
+event.results_21$diagnostics
+
+event.results_21$regression
+
+
+#7 31-day results
+
+event.results_31$events
+
+event.results_31$statistics
+
+event.results_31$correlations
+
+event.results_31$diagnostics
+
+event.results_31$regression
+
+
+#8 Event window comparison
+
+event.window.comparison <- data.frame(
+  
+  Smoothing = c(11, 21, 31),
+  
+  Number_of_Events = c(
+    nrow(event.results_11$events),
+    nrow(event.results_21$events),
+    nrow(event.results_31$events)
+  ),
+  
+  Significant_Correlations = c(
+    sum(
+      event.results_11$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_21$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_31$correlations$Correlation_P_Value < 0.05
+    )
+  ),
+  
+  Significant_NW_Regressions = c(
+    sum(
+      event.results_11$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_21$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_31$regression$NeweyWest_P_Value < 0.05
+    )
+  )
+)
+
+event.window.comparison
+
+
+#9 Event identification stability
+
+event.stability.data <- rbind(
+  
+  data.frame(
+    Event = event.results_11$events$Event,
+    Base_Event = sub(
+      " [GAT][0-9]+(-[0-9]+)?$",
+      "",
+      event.results_11$events$Event
+    ),
+    Measure = event.results_11$events$Measure,
+    Smoothing = 11,
+    Significant_NW =
+      event.results_11$regression$Significant
+  ),
+  
+  data.frame(
+    Event = event.results_21$events$Event,
+    Base_Event = sub(
+      " [GAT][0-9]+(-[0-9]+)?$",
+      "",
+      event.results_21$events$Event
+    ),
+    Measure = event.results_21$events$Measure,
+    Smoothing = 21,
+    Significant_NW =
+      event.results_21$regression$Significant
+  ),
+  
+  data.frame(
+    Event = event.results_31$events$Event,
+    Base_Event = sub(
+      " [GAT][0-9]+(-[0-9]+)?$",
+      "",
+      event.results_31$events$Event
+    ),
+    Measure = event.results_31$events$Measure,
+    Smoothing = 31,
+    Significant_NW =
+      event.results_31$regression$Significant
+  )
 )
 
 
-#19 Format event regression table
-event.regression$Sample_Size <-
-  round(event.regression$Sample_Size,0)
-
-event.regression$Correlation <-
-  round(event.regression$Correlation,4)
-
-event.regression$Intercept <-
-  round(event.regression$Intercept,4)
-
-event.regression$GPR_Coefficient <-
-  signif(event.regression$GPR_Coefficient,4)
-
-event.regression$Adj_R2 <-
-  round(event.regression$Adj_R2,4)
-
-event.regression$Residual_SE <-
-  round(event.regression$Residual_SE,5)
-
-event.regression$NeweyWest_P_Value <-
-  signif(event.regression$NeweyWest_P_Value,4)
-
-event.regression$Significant <- ifelse(
-  
-  event.regression$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
+event.stability <- do.call(
+  rbind,
+  lapply(
+    split(
+      event.stability.data,
+      list(
+        event.stability.data$Base_Event,
+        event.stability.data$Measure
+      ),
+      drop = TRUE
+    ),
+    function(x) {
+      
+      data.frame(
+        Event = x$Base_Event[1],
+        Measure = x$Measure[1],
+        Window_11 =
+          ifelse(
+            any(x$Smoothing == 11),
+            "Yes",
+            "No"
+          ),
+        Window_21 =
+          ifelse(
+            any(x$Smoothing == 21),
+            "Yes",
+            "No"
+          ),
+        Window_31 =
+          ifelse(
+            any(x$Smoothing == 31),
+            "Yes",
+            "No"
+          ),
+        NW_Significant_11 =
+          ifelse(
+            any(
+              x$Smoothing == 11 &
+                x$Significant_NW == "Yes"
+            ),
+            "Yes",
+            "No"
+          ),
+        NW_Significant_21 =
+          ifelse(
+            any(
+              x$Smoothing == 21 &
+                x$Significant_NW == "Yes"
+            ),
+            "Yes",
+            "No"
+          ),
+        NW_Significant_31 =
+          ifelse(
+            any(
+              x$Smoothing == 31 &
+                x$Significant_NW == "Yes"
+            ),
+            "Yes",
+            "No"
+          )
+      )
+      
+    }
+  )
 )
 
-print(event.regression)
+rownames(event.stability) <- NULL
+
+event.stability
+

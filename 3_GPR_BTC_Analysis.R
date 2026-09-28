@@ -7,14 +7,16 @@ library(sandwich)
 library(tseries)
 
 
-# 2. Create Lagged GPR Variables
+# 2. Create Lagged Variables
 data <- data0 %>%
   
   mutate(
     
     GPR_Lag1 = lag(GPRD, 1),
     
-    GPR_Lag2 = lag(GPRD, 2)
+    GPR_Lag2 = lag(GPRD, 2),
+    
+    BTC_Volatility_Lag1 = lag(BTC_Volatility, 1)
     
   )
 
@@ -149,6 +151,19 @@ volatility.model3 <- lm(
   
 )
 
+# Volatility Dynamic Model: Lagged Bitcoin Volatility + Contemporaneous GPR
+volatility.dynamic <- lm(
+  
+  BTC_Volatility ~
+    
+    BTC_Volatility_Lag1 +
+    
+    GPRD,
+  
+  data = data
+  
+)
+
 
 # 7. Model summaries
 
@@ -157,6 +172,8 @@ summary(volatility.model1)
 summary(volatility.model2)
 
 summary(volatility.model3)
+
+summary(volatility.dynamic)
 
 
 # 8. 95% confidence intervals
@@ -178,7 +195,9 @@ model.comparison <- data.frame(
     
     "Volatility: 1 Lag",
     
-    "Volatility: 2 Lags"
+    "Volatility: 2 Lags",
+    
+    "Dynamic: BTC Volatility Lag1 + GPR"
     
   ),
   
@@ -188,7 +207,9 @@ model.comparison <- data.frame(
     
     as.numeric(logLik(volatility.model2)),
     
-    as.numeric(logLik(volatility.model3))
+    as.numeric(logLik(volatility.model3)),
+    
+    as.numeric(logLik(volatility.dynamic))
     
   ),
   
@@ -198,7 +219,9 @@ model.comparison <- data.frame(
     
     summary(volatility.model2)$adj.r.squared,
     
-    summary(volatility.model3)$adj.r.squared
+    summary(volatility.model3)$adj.r.squared,
+    
+    summary(volatility.dynamic)$adj.r.squared
     
   ),
   
@@ -208,7 +231,9 @@ model.comparison <- data.frame(
     
     AIC(volatility.model2),
     
-    AIC(volatility.model3)
+    AIC(volatility.model3),
+    
+    AIC(volatility.dynamic)
     
   ),
   
@@ -218,7 +243,9 @@ model.comparison <- data.frame(
     
     BIC(volatility.model2),
     
-    BIC(volatility.model3)
+    BIC(volatility.model3),
+    
+    BIC(volatility.dynamic)
     
   ),
   
@@ -228,7 +255,9 @@ model.comparison <- data.frame(
     
     summary(volatility.model2)$sigma,
     
-    summary(volatility.model3)$sigma
+    summary(volatility.model3)$sigma,
+    
+    summary(volatility.dynamic)$sigma
     
   ),
   
@@ -238,7 +267,9 @@ model.comparison <- data.frame(
     
     summary(volatility.model2)$fstatistic[1],
     
-    summary(volatility.model3)$fstatistic[1]
+    summary(volatility.model3)$fstatistic[1],
+    
+    summary(volatility.dynamic)$fstatistic[1]
     
   ),
   
@@ -262,6 +293,13 @@ model.comparison <- data.frame(
       summary(volatility.model3)$fstatistic[1],
       summary(volatility.model3)$fstatistic[2],
       summary(volatility.model3)$fstatistic[3],
+      lower.tail = FALSE
+    ),
+    
+    pf(
+      summary(volatility.dynamic)$fstatistic[1],
+      summary(volatility.dynamic)$fstatistic[2],
+      summary(volatility.dynamic)$fstatistic[3],
       lower.tail = FALSE
     )
     
@@ -290,6 +328,8 @@ plot(volatility.model2)
 
 plot(volatility.model3)
 
+plot(volatility.dynamic)
+
 par(mfrow = c(1,1))
 
 
@@ -307,10 +347,14 @@ jb.model3 <- jarque.bera.test(
   residuals(volatility.model3)
 )
 
+jb.dynamic <- jarque.bera.test(
+  residuals(volatility.dynamic)
+)
+
 jb.model1
 jb.model2
 jb.model3
-
+jb.dynamic
 
 # Durbin-Watson tests
 
@@ -330,6 +374,14 @@ dw.model1
 dw.model2
 dw.model3
 
+# Breusch-Godfrey test for dynamic model
+
+bg.dynamic <- bgtest(
+  volatility.dynamic,
+  order = 2
+)
+
+bg.dynamic
 
 # Ljung-Box tests
 
@@ -351,10 +403,16 @@ lb.model3 <- Box.test(
   type = "Ljung-Box"
 )
 
+lb.dynamic <- Box.test(
+  residuals(volatility.dynamic),
+  lag = 20,
+  type = "Ljung-Box"
+)
+
 lb.model1
 lb.model2
 lb.model3
-
+lb.dynamic
 
 # Breusch-Pagan tests
 
@@ -369,11 +427,14 @@ bp.model2 <- bptest(
 bp.model3 <- bptest(
   volatility.model3
 )
+bp.dynamic <- bptest(
+  volatility.dynamic
+)
 
 bp.model1
 bp.model2
 bp.model3
-
+bp.dynamic
 
 # Multicollinearity
 
@@ -437,15 +498,25 @@ nw.model3 <- coeftest(
   
 )
 
+nw.dynamic <- coeftest(
+  
+  volatility.dynamic,
+  
+  vcov = NeweyWest(
+    
+    volatility.dynamic,
+    prewhite = FALSE
+    
+  )
+  
+)
 
 # Display Newey-West results
 
 nw.model1
-
 nw.model2
-
 nw.model3
-
+nw.dynamic
 
 ###############################################################
 # Section C: GPR Component Analysis
@@ -576,7 +647,9 @@ regression.summary <- data.frame(
     
     "Volatility: 1 Lag",
     
-    "Volatility: 2 Lags"
+    "Volatility: 2 Lags",
+    
+    "Dynamic: BTC Volatility Lag1 + GPR"
     
   ),
   
@@ -592,6 +665,10 @@ regression.summary <- data.frame(
     
     unname(
       coef(volatility.model3)["GPRD"]
+    ),
+    
+    unname(
+      coef(volatility.dynamic)["GPRD"]
     )
     
   ),
@@ -606,7 +683,9 @@ regression.summary <- data.frame(
     
     unname(
       coef(volatility.model3)["GPR_Lag1"]
-    )
+    ),
+    
+    NA
     
   ),
   
@@ -618,7 +697,9 @@ regression.summary <- data.frame(
     
     unname(
       coef(volatility.model3)["GPR_Lag2"]
-    )
+    ),
+    
+    NA
     
   ),
   
@@ -628,7 +709,9 @@ regression.summary <- data.frame(
     
     summary(volatility.model2)$adj.r.squared,
     
-    summary(volatility.model3)$adj.r.squared
+    summary(volatility.model3)$adj.r.squared,
+    
+    summary(volatility.dynamic)$adj.r.squared
     
   ),
   
@@ -638,7 +721,9 @@ regression.summary <- data.frame(
     
     nw.model2["GPRD", "Pr(>|t|)"],
     
-    nw.model3["GPRD", "Pr(>|t|)"]
+    nw.model3["GPRD", "Pr(>|t|)"],
+    
+    nw.dynamic["GPRD", "Pr(>|t|)"]
     
   ),
   
@@ -648,7 +733,9 @@ regression.summary <- data.frame(
     
     nw.model2["GPR_Lag1", "Pr(>|t|)"],
     
-    nw.model3["GPR_Lag1", "Pr(>|t|)"]
+    nw.model3["GPR_Lag1", "Pr(>|t|)"],
+    
+    NA
     
   ),
   
@@ -658,7 +745,9 @@ regression.summary <- data.frame(
     
     NA,
     
-    nw.model3["GPR_Lag2", "Pr(>|t|)"]
+    nw.model3["GPR_Lag2", "Pr(>|t|)"],
+    
+    NA
     
   )
   

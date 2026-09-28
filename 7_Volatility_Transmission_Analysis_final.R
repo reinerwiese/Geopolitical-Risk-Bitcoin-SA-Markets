@@ -1,261 +1,291 @@
-#1 Load required packages
-library(dplyr)
+# 1. LOAD PACKAGES
+
 library(ggplot2)
-
-library(FinTS)
-library(tseries)
-library(moments)
-
 library(lmtest)
 library(sandwich)
-library(car)
+library(tseries)
 
-source("0_Run_First.R")
+
+# 2. PREPARE DATA
 
 data <- data0
 
 
+# HELPER FUNCTIONS
+
+add_lags <- function(data, variable) {
+  data[[paste0(variable, "_Lag1")]] <- dplyr::lag(
+    data[[variable]],
+    1
+  )
+  
+  data[[paste0(variable, "_Lag2")]] <- dplyr::lag(
+    data[[variable]],
+    2
+  )
+  
+  data
+}
+
+
+nw_test <- function(model) {
+  coeftest(
+    model,
+    vcov = NeweyWest(
+      model,
+      prewhite = FALSE
+    )
+  )
+}
+
+
+model_diagnostics <- function(model) {
+  list(
+    JB = jarque.bera.test(residuals(model)),
+    BG = bgtest(model, order = 2),
+    BP = bptest(model)
+  )
+}
+
+
+format_p <- function(p) {
+  ifelse(
+    p < 2.2e-16,
+    "<2.2e-16",
+    formatC(
+      p,
+      format = "g",
+      digits = 4
+    )
+  )
+}
+
+
+static_model <- function(data, btc_lags = 0) {
+  
+  formula <- switch(
+    as.character(btc_lags),
+    
+    "0" = J303_Volatility ~
+      BTC_Volatility,
+    
+    "1" = J303_Volatility ~
+      BTC_Volatility +
+      BTC_Volatility_Lag1,
+    
+    "2" = J303_Volatility ~
+      BTC_Volatility +
+      BTC_Volatility_Lag1 +
+      BTC_Volatility_Lag2
+  )
+  
+  lm(
+    formula,
+    data = data
+  )
+}
+
+
+dynamic_model <- function(data) {
+  
+  lm(
+    J303_Volatility ~
+      J303_Volatility_Lag1 +
+      J303_Volatility_Lag2 +
+      BTC_Volatility +
+      BTC_Volatility_Lag1 +
+      BTC_Volatility_Lag2,
+    data = data
+  )
+}
+
+
+dynamic_comparison <- function(
+    model.low,
+    model.high,
+    nw.low,
+    nw.high
+) {
+  
+  comparison <- data.frame(
+    
+    Regime = c(
+      "Lower GPR",
+      "Elevated GPR"
+    ),
+    
+    J303_Vol_Lag1 = c(
+      coef(model.low)["J303_Volatility_Lag1"],
+      coef(model.high)["J303_Volatility_Lag1"]
+    ),
+    
+    J303_Vol_Lag1_NW_p = c(
+      nw.low[
+        "J303_Volatility_Lag1",
+        "Pr(>|t|)"
+      ],
+      nw.high[
+        "J303_Volatility_Lag1",
+        "Pr(>|t|)"
+      ]
+    ),
+    
+    J303_Vol_Lag2 = c(
+      coef(model.low)["J303_Volatility_Lag2"],
+      coef(model.high)["J303_Volatility_Lag2"]
+    ),
+    
+    J303_Vol_Lag2_NW_p = c(
+      nw.low[
+        "J303_Volatility_Lag2",
+        "Pr(>|t|)"
+      ],
+      nw.high[
+        "J303_Volatility_Lag2",
+        "Pr(>|t|)"
+      ]
+    ),
+    
+    BTC_Volatility = c(
+      coef(model.low)["BTC_Volatility"],
+      coef(model.high)["BTC_Volatility"]
+    ),
+    
+    BTC_Volatility_NW_p = c(
+      nw.low[
+        "BTC_Volatility",
+        "Pr(>|t|)"
+      ],
+      nw.high[
+        "BTC_Volatility",
+        "Pr(>|t|)"
+      ]
+    ),
+    
+    BTC_Volatility_Lag1 = c(
+      coef(model.low)["BTC_Volatility_Lag1"],
+      coef(model.high)["BTC_Volatility_Lag1"]
+    ),
+    
+    BTC_Volatility_Lag1_NW_p = c(
+      nw.low[
+        "BTC_Volatility_Lag1",
+        "Pr(>|t|)"
+      ],
+      nw.high[
+        "BTC_Volatility_Lag1",
+        "Pr(>|t|)"
+      ]
+    ),
+    
+    BTC_Volatility_Lag2 = c(
+      coef(model.low)["BTC_Volatility_Lag2"],
+      coef(model.high)["BTC_Volatility_Lag2"]
+    ),
+    
+    BTC_Volatility_Lag2_NW_p = c(
+      nw.low[
+        "BTC_Volatility_Lag2",
+        "Pr(>|t|)"
+      ],
+      nw.high[
+        "BTC_Volatility_Lag2",
+        "Pr(>|t|)"
+      ]
+    )
+  )
+  
+  comparison[-1] <- lapply(
+    comparison[-1],
+    signif,
+    digits = 4
+  )
+  
+  comparison
+}
+
+
 ###############################################################
-# Section A: Analysis by Geopolitical Risk Regime
+# Section A: GPRD Regime Analysis
 ###############################################################
 
-#5 Baseline relationship between Bitcoin and J303 conditional volatility
-overall.cor <- cor.test(
-  
-  data$BTC_Volatility,
-  
-  data$J303_Volatility
-  
-)
+# 3. Create BTC and J303 volatility lags
 
-overall.cor
-
-overall.model <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = data
-  
-)
-
-summary(overall.model)
+data <- add_lags(data, "BTC_Volatility")
+data <- add_lags(data, "J303_Volatility")
 
 
-#6 Baseline regression diagnostics and robust inference
+# 4. Split the dataset
 
-# Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(overall.model)
-
-par(mfrow = c(1,1))
-
-
-# Jarque-Bera test for residual normality
-jb.overall <- jarque.bera.test(
-  residuals(overall.model)
-)
-
-jb.overall
-
-
-# Durbin-Watson test for residual autocorrelation
-dw.overall <- dwtest(
-  overall.model
-)
-
-dw.overall
-
-
-# Breusch-Pagan test for heteroskedasticity
-bp.overall <- bptest(
-  overall.model
-)
-
-bp.overall
-
-
-# Newey-West robust inference
-nw.overall <- coeftest(
-  
-  overall.model,
-  
-  vcov = NeweyWest(
-    overall.model,
-    prewhite = FALSE
-  )
-  
-)
-
-nw.overall
-
-
-#7 Baseline regression summary table
-baseline.summary <- data.frame(
-  
-  Correlation =
-    unname(overall.cor$estimate),
-  
-  BTC_Coefficient =
-    coef(overall.model)[2],
-  
-  Adj_R2 =
-    summary(overall.model)$adj.r.squared,
-  
-  Residual_SE =
-    summary(overall.model)$sigma,
-  
-  NeweyWest_P_Value =
-    nw.overall[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ]
-  
-)
-
-baseline.summary$Correlation <-
-  round(
-    baseline.summary$Correlation,
-    4
-  )
-
-baseline.summary$BTC_Coefficient <-
-  signif(
-    baseline.summary$BTC_Coefficient,
-    4
-  )
-
-baseline.summary$Adj_R2 <-
-  round(
-    baseline.summary$Adj_R2,
-    4
-  )
-
-baseline.summary$Residual_SE <-
-  round(
-    baseline.summary$Residual_SE,
-    5
-  )
-
-baseline.summary$NeweyWest_P_Value <-
-  signif(
-    baseline.summary$NeweyWest_P_Value,
-    4
-  )
-
-baseline.summary$Significant <- ifelse(
-  
-  baseline.summary$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(baseline.summary)
-
-
-#8 Use geopolitical risk regimes from shared setup
-
-table(data$GPR_Regime)
-
-
-#9 Split data by geopolitical risk regime
-lower.gpr <- subset(
-  
+low.gpr <- subset(
   data,
-  
   GPR_Regime == "Lower GPR"
-  
 )
 
-elevated.gpr <- subset(
-  
+high.gpr <- subset(
   data,
-  
   GPR_Regime == "Elevated GPR"
-  
 )
 
 
-#10 Summary statistics by geopolitical risk regime
-regime.statistics <- data.frame(
+# 5. Descriptive statistics by regime
+
+regime.summary <- data.frame(
   
   Regime = c(
     "Lower GPR",
     "Elevated GPR"
   ),
   
-  Sample_Size = c(
-    nrow(lower.gpr),
-    nrow(elevated.gpr)
+  Observations = c(
+    nrow(low.gpr),
+    nrow(high.gpr)
   ),
   
   Mean_GPR = c(
-    mean(lower.gpr$GPRD),
-    mean(elevated.gpr$GPRD)
-  ),
-  
-  SD_GPR = c(
-    sd(lower.gpr$GPRD),
-    sd(elevated.gpr$GPRD)
+    mean(low.gpr$GPRD),
+    mean(high.gpr$GPRD)
   ),
   
   Mean_BTC_Volatility = c(
-    mean(lower.gpr$BTC_Volatility),
-    mean(elevated.gpr$BTC_Volatility)
-  ),
-  
-  SD_BTC_Volatility = c(
-    sd(lower.gpr$BTC_Volatility),
-    sd(elevated.gpr$BTC_Volatility)
+    mean(low.gpr$BTC_Volatility),
+    mean(high.gpr$BTC_Volatility)
   ),
   
   Mean_J303_Volatility = c(
-    mean(lower.gpr$J303_Volatility),
-    mean(elevated.gpr$J303_Volatility)
-  ),
-  
-  SD_J303_Volatility = c(
-    sd(lower.gpr$J303_Volatility),
-    sd(elevated.gpr$J303_Volatility)
+    mean(low.gpr$J303_Volatility),
+    mean(high.gpr$J303_Volatility)
   )
   
 )
 
-regime.statistics[-1] <- round(
-  regime.statistics[-1],
-  4
+regime.summary[-1] <-
+  round(
+    regime.summary[-1],
+    4
+  )
+
+regime.summary
+
+
+# 6. Correlation analysis by regime
+
+cor.low <- cor.test(
+  low.gpr$BTC_Volatility,
+  low.gpr$J303_Volatility
 )
 
-print(regime.statistics)
-
-
-#11 Correlation analysis by geopolitical risk regime
-cor.lower <- cor.test(
-  
-  lower.gpr$BTC_Volatility,
-  
-  lower.gpr$J303_Volatility
-  
+cor.high <- cor.test(
+  high.gpr$BTC_Volatility,
+  high.gpr$J303_Volatility
 )
 
-cor.elevated <- cor.test(
-  
-  elevated.gpr$BTC_Volatility,
-  
-  elevated.gpr$J303_Volatility
-  
-)
-
-cor.lower
-
-cor.elevated
+cor.low
+cor.high
 
 
-#12 Correlation summary table
+# Correlation summary
+
 correlation.summary <- data.frame(
   
   Regime = c(
@@ -264,18 +294,18 @@ correlation.summary <- data.frame(
   ),
   
   Sample_Size = c(
-    nrow(lower.gpr),
-    nrow(elevated.gpr)
+    nrow(low.gpr),
+    nrow(high.gpr)
   ),
   
   Correlation = c(
-    unname(cor.lower$estimate),
-    unname(cor.elevated$estimate)
+    unname(cor.low$estimate),
+    unname(cor.high$estimate)
   ),
   
   Correlation_P_Value = c(
-    cor.lower$p.value,
-    cor.elevated$p.value
+    cor.low$p.value,
+    cor.high$p.value
   )
   
 )
@@ -292,1612 +322,919 @@ correlation.summary$Correlation_P_Value <-
     4
   )
 
-correlation.summary$Significant <- ifelse(
-  
-  correlation.summary$Correlation_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
+correlation.summary
+
+
+# 7. Scatterplots
+
+ggplot(
+  low.gpr,
+  aes(
+    x = BTC_Volatility,
+    y = J303_Volatility
+  )
+) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(
+    method = "lm",
+    se = TRUE
+  ) +
+  geom_smooth(
+    method = "loess",
+    se = TRUE
+  ) +
+  theme_minimal() +
+  labs(
+    title = "J303 Conditional Volatility vs Bitcoin Conditional Volatility (Lower GPR)",
+    x = "Bitcoin Conditional Volatility",
+    y = "J303 Conditional Volatility"
+  )
+
+
+ggplot(
+  high.gpr,
+  aes(
+    x = BTC_Volatility,
+    y = J303_Volatility
+  )
+) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(
+    method = "lm",
+    se = TRUE
+  ) +
+  geom_smooth(
+    method = "loess",
+    se = TRUE
+  ) +
+  theme_minimal() +
+  labs(
+    title = "J303 Conditional Volatility vs Bitcoin Conditional Volatility (Elevated GPR)",
+    x = "Bitcoin Conditional Volatility",
+    y = "J303 Conditional Volatility"
+  )
+
+
+###############################################################
+# Section B: Static Regime Models
+###############################################################
+
+# 8. Static regression models
+
+model.low.0 <- static_model(low.gpr, 0)
+model.low.1 <- static_model(low.gpr, 1)
+model.low.2 <- static_model(low.gpr, 2)
+
+model.high.0 <- static_model(high.gpr, 0)
+model.high.1 <- static_model(high.gpr, 1)
+model.high.2 <- static_model(high.gpr, 2)
+
+
+# 9. Static model diagnostics
+
+diag.low.0 <- model_diagnostics(
+  model.low.0
 )
 
-print(correlation.summary)
-
-
-#13 Regime-specific regression models
-
-# Lower GPR
-model.lower <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = lower.gpr
-  
+diag.low.1 <- model_diagnostics(
+  model.low.1
 )
 
-summary(model.lower)
+diag.low.2 <- model_diagnostics(
+  model.low.2
+)
+
+diag.high.0 <- model_diagnostics(
+  model.high.0
+)
+
+diag.high.1 <- model_diagnostics(
+  model.high.1
+)
+
+diag.high.2 <- model_diagnostics(
+  model.high.2
+)
 
 
-# Elevated GPR
-model.elevated <- lm(
+static.diagnostics <- data.frame(
   
-  J303_Volatility ~
-    BTC_Volatility,
+  Regime = c(
+    "Lower GPR",
+    "Lower GPR",
+    "Lower GPR",
+    "Elevated GPR",
+    "Elevated GPR",
+    "Elevated GPR"
+  ),
   
-  data = elevated.gpr
+  BTC_Lags = c(
+    0, 1, 2,
+    0, 1, 2
+  ),
   
-)
-
-summary(model.elevated)
-
-
-#14 Regime-specific regression diagnostics and robust inference
-
-# Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(model.lower)
-
-plot(model.elevated)
-
-par(mfrow = c(1,1))
-
-
-# Jarque-Bera tests for residual normality
-jb.lower <- jarque.bera.test(
-  residuals(model.lower)
-)
-
-jb.elevated <- jarque.bera.test(
-  residuals(model.elevated)
-)
-
-jb.lower
-
-jb.elevated
-
-
-# Durbin-Watson tests for residual autocorrelation
-dw.lower <- dwtest(
-  model.lower
-)
-
-dw.elevated <- dwtest(
-  model.elevated
-)
-
-dw.lower
-
-dw.elevated
-
-
-# Breusch-Pagan tests for heteroskedasticity
-bp.lower <- bptest(
-  model.lower
-)
-
-bp.elevated <- bptest(
-  model.elevated
-)
-
-bp.lower
-
-bp.elevated
-
-
-# Newey-West robust inference
-nw.lower <- coeftest(
+  JB_p = c(
+    diag.low.0$JB$p.value,
+    diag.low.1$JB$p.value,
+    diag.low.2$JB$p.value,
+    diag.high.0$JB$p.value,
+    diag.high.1$JB$p.value,
+    diag.high.2$JB$p.value
+  ),
   
-  model.lower,
+  BG_2_p = c(
+    diag.low.0$BG$p.value,
+    diag.low.1$BG$p.value,
+    diag.low.2$BG$p.value,
+    diag.high.0$BG$p.value,
+    diag.high.1$BG$p.value,
+    diag.high.2$BG$p.value
+  ),
   
-  vcov = NeweyWest(
-    model.lower,
-    prewhite = FALSE
+  BP_p = c(
+    diag.low.0$BP$p.value,
+    diag.low.1$BP$p.value,
+    diag.low.2$BP$p.value,
+    diag.high.0$BP$p.value,
+    diag.high.1$BP$p.value,
+    diag.high.2$BP$p.value
   )
   
 )
 
-nw.elevated <- coeftest(
-  
-  model.elevated,
-  
-  vcov = NeweyWest(
-    model.elevated,
-    prewhite = FALSE
+static.diagnostics$JB_p <-
+  format_p(
+    static.diagnostics$JB_p
   )
-  
+
+static.diagnostics$BG_2_p <-
+  format_p(
+    static.diagnostics$BG_2_p
+  )
+
+static.diagnostics$BP_p <-
+  format_p(
+    static.diagnostics$BP_p
+  )
+
+static.diagnostics
+
+
+# 10. Newey-West robust inference
+
+nw.low.0 <- nw_test(
+  model.low.0
 )
 
-nw.lower
+nw.low.1 <- nw_test(
+  model.low.1
+)
 
-nw.elevated
+nw.low.2 <- nw_test(
+  model.low.2
+)
+
+nw.high.0 <- nw_test(
+  model.high.0
+)
+
+nw.high.1 <- nw_test(
+  model.high.1
+)
+
+nw.high.2 <- nw_test(
+  model.high.2
+)
+
+nw.low.0
+nw.low.1
+nw.low.2
+
+nw.high.0
+nw.high.1
+nw.high.2
 
 
-#15 Regime-specific regression summary table
-regression.summary <- data.frame(
+###############################################################
+# Section C: Dynamic Regime Models
+###############################################################
+
+# 11. Dynamic regime models
+
+model.low.dynamic <- dynamic_model(low.gpr)
+model.high.dynamic <- dynamic_model(high.gpr)
+
+
+# 12. Dynamic model diagnostics
+
+diag.low.dynamic <- model_diagnostics(
+  model.low.dynamic
+)
+
+diag.high.dynamic <- model_diagnostics(
+  model.high.dynamic
+)
+
+dynamic.diagnostics <- data.frame(
   
   Regime = c(
     "Lower GPR",
     "Elevated GPR"
   ),
   
-  Sample_Size = c(
-    nrow(lower.gpr),
-    nrow(elevated.gpr)
+  JB_p = c(
+    diag.low.dynamic$JB$p.value,
+    diag.high.dynamic$JB$p.value
   ),
   
-  Correlation = c(
-    unname(cor.lower$estimate),
-    unname(cor.elevated$estimate)
+  BG_2_p = c(
+    diag.low.dynamic$BG$p.value,
+    diag.high.dynamic$BG$p.value
   ),
   
-  BTC_Coefficient = c(
-    coef(model.lower)[2],
-    coef(model.elevated)[2]
-  ),
-  
-  Adj_R2 = c(
-    summary(model.lower)$adj.r.squared,
-    summary(model.elevated)$adj.r.squared
-  ),
-  
-  Residual_SE = c(
-    summary(model.lower)$sigma,
-    summary(model.elevated)$sigma
-  ),
-  
-  NeweyWest_P_Value = c(
-    nw.lower[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    nw.elevated[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ]
+  BP_p = c(
+    diag.low.dynamic$BP$p.value,
+    diag.high.dynamic$BP$p.value
   )
   
 )
 
-regression.summary$Correlation <-
-  round(
-    regression.summary$Correlation,
-    4
+dynamic.diagnostics$JB_p <-
+  format_p(
+    dynamic.diagnostics$JB_p
   )
 
-regression.summary$BTC_Coefficient <-
-  signif(
-    regression.summary$BTC_Coefficient,
-    4
+dynamic.diagnostics$BG_2_p <-
+  format_p(
+    dynamic.diagnostics$BG_2_p
   )
 
-regression.summary$Adj_R2 <-
-  round(
-    regression.summary$Adj_R2,
-    4
+dynamic.diagnostics$BP_p <-
+  format_p(
+    dynamic.diagnostics$BP_p
   )
 
-regression.summary$Residual_SE <-
-  round(
-    regression.summary$Residual_SE,
-    5
-  )
+dynamic.diagnostics
 
-regression.summary$NeweyWest_P_Value <-
-  signif(
-    regression.summary$NeweyWest_P_Value,
-    4
-  )
 
-regression.summary$Significant <- ifelse(
-  
-  regression.summary$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
+# 13. Newey-West robust inference
+
+nw.low.dynamic <- nw_test(
+  model.low.dynamic
 )
 
-print(regression.summary)
-
-
-#16 Fisher r-to-z test comparing regime correlations
-z.lower <- atanh(
-  cor.lower$estimate
+nw.high.dynamic <- nw_test(
+  model.high.dynamic
 )
 
-z.elevated <- atanh(
-  cor.elevated$estimate
+nw.low.dynamic
+nw.high.dynamic
+
+
+# 14. Dynamic model comparison
+
+dynamic.comparison <- dynamic_comparison(
+  model.low.dynamic,
+  model.high.dynamic,
+  nw.low.dynamic,
+  nw.high.dynamic
 )
 
-z.statistic <- (
-  z.lower - z.elevated
-) /
-  sqrt(
-    1 / (nrow(lower.gpr) - 3) +
-      1 / (nrow(elevated.gpr) - 3)
-  )
-
-z.statistic
-
-p.value <- 2 * (
-  1 -
-    pnorm(abs(z.statistic))
-)
-
-# Fisher z-test result
-round(z.statistic, 4)
-
-signif(p.value, 4)
+dynamic.comparison
 
 
-#17 Interaction model testing whether the volatility relationship differs by regime
-data$GPR_Regime <- factor(
-  
-  data$GPR_Regime,
-  
-  levels = c(
-    "Lower GPR",
-    "Elevated GPR"
-  )
-  
-)
+###############################################################
+# Section D: Dynamic GPRD Interaction Model
+###############################################################
+
+# 15. Dynamic interaction model
 
 interaction.model <- lm(
-  
   J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2 +
     BTC_Volatility *
-    GPR_Regime,
-  
+    GPR_Regime +
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
   data = data
-  
 )
 
-summary(interaction.model)
 
+# 16. Newey-West robust inference
 
-#18 Interaction model diagnostics and robust inference
-
-# Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(interaction.model)
-
-par(mfrow = c(1,1))
-
-
-# Jarque-Bera test for residual normality
-jb.interaction <- jarque.bera.test(
-  residuals(interaction.model)
-)
-
-jb.interaction
-
-
-# Durbin-Watson test for residual autocorrelation
-dw.interaction <- dwtest(
+interaction.nw <- nw_test(
   interaction.model
-)
-
-dw.interaction
-
-
-# Breusch-Pagan test for heteroskedasticity
-bp.interaction <- bptest(
-  interaction.model
-)
-
-bp.interaction
-
-
-# Newey-West robust inference
-interaction.nw <- coeftest(
-  
-  interaction.model,
-  
-  vcov = NeweyWest(
-    interaction.model,
-    prewhite = FALSE
-  )
-  
 )
 
 interaction.nw
 
 
-#19 Regime-level summary of correlations and robust regression significance
-overall.summary <- data.frame(
+# 17. Interaction model diagnostics
+
+interaction.diagnostics <- model_diagnostics(
+  interaction.model
+)
+
+interaction.diagnostics$JB
+interaction.diagnostics$BG
+interaction.diagnostics$BP
+
+
+# 18. Dynamic interaction summary
+
+interaction.summary <- data.frame(
+  
+  Variable = c(
+    "BTC Volatility",
+    "Elevated GPR",
+    "BTC Volatility × Elevated GPR"
+  ),
+  
+  Estimate = c(
+    interaction.nw[
+      "BTC_Volatility",
+      "Estimate"
+    ],
+    interaction.nw[
+      "GPR_RegimeElevated GPR",
+      "Estimate"
+    ],
+    interaction.nw[
+      "BTC_Volatility:GPR_RegimeElevated GPR",
+      "Estimate"
+    ]
+  ),
+  
+  Robust_SE = c(
+    interaction.nw[
+      "BTC_Volatility",
+      "Std. Error"
+    ],
+    interaction.nw[
+      "GPR_RegimeElevated GPR",
+      "Std. Error"
+    ],
+    interaction.nw[
+      "BTC_Volatility:GPR_RegimeElevated GPR",
+      "Std. Error"
+    ]
+  ),
+  
+  P_Value = c(
+    interaction.nw[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    interaction.nw[
+      "GPR_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ],
+    interaction.nw[
+      "BTC_Volatility:GPR_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ]
+  )
+  
+)
+
+interaction.summary[-1] <- lapply(
+  interaction.summary[-1],
+  signif,
+  digits = 4
+)
+
+interaction.summary
+
+
+# 19. Fully interacted dynamic model
+
+interaction.lag.model <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2 +
+    BTC_Volatility *
+    GPR_Regime +
+    BTC_Volatility_Lag1 *
+    GPR_Regime +
+    BTC_Volatility_Lag2 *
+    GPR_Regime,
+  data = data
+)
+
+
+# 20. Newey-West robust inference
+
+interaction.lag.nw <- nw_test(
+  interaction.lag.model
+)
+
+interaction.lag.nw
+
+
+# 21. Interaction model diagnostics
+
+interaction.lag.diagnostics <- model_diagnostics(
+  interaction.lag.model
+)
+
+interaction.lag.diagnostics$JB
+interaction.lag.diagnostics$BG
+interaction.lag.diagnostics$BP
+
+
+# 22. Interaction model summary
+
+interaction.lag.summary <- data.frame(
+  
+  Variable = rownames(
+    interaction.lag.nw
+  ),
+  
+  Estimate = interaction.lag.nw[
+    ,
+    "Estimate"
+  ],
+  
+  Robust_SE = interaction.lag.nw[
+    ,
+    "Std. Error"
+  ],
+  
+  P_Value = interaction.lag.nw[
+    ,
+    "Pr(>|t|)"
+  ]
+  
+)
+
+interaction.lag.summary[-1] <- lapply(
+  interaction.lag.summary[-1],
+  signif,
+  digits = 4
+)
+
+interaction.lag.summary
+
+
+###############################################################
+# Section E: Alternative GPR Measures
+###############################################################
+
+# 23. ACT regime splits
+
+low.act <- subset(
+  data,
+  GPRD_ACT_Regime == "Lower GPR"
+)
+
+high.act <- subset(
+  data,
+  GPRD_ACT_Regime == "Elevated GPR"
+)
+
+
+# 24. ACT dynamic regime models
+
+model.low.act.dynamic <- dynamic_model(low.act)
+model.high.act.dynamic <- dynamic_model(high.act)
+
+
+# 25. ACT diagnostics
+
+diag.low.act.dynamic <- model_diagnostics(
+  model.low.act.dynamic
+)
+
+diag.high.act.dynamic <- model_diagnostics(
+  model.high.act.dynamic
+)
+
+act.dynamic.diagnostics <- data.frame(
   
   Regime = c(
     "Lower GPR",
     "Elevated GPR"
   ),
   
-  Correlation = c(
-    unname(cor.lower$estimate),
-    unname(cor.elevated$estimate)
+  JB_p = c(
+    diag.low.act.dynamic$JB$p.value,
+    diag.high.act.dynamic$JB$p.value
   ),
   
-  NeweyWest_P_Value = c(
-    nw.lower[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    nw.elevated[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ]
+  BG_2_p = c(
+    diag.low.act.dynamic$BG$p.value,
+    diag.high.act.dynamic$BG$p.value
   ),
   
-  Significant = c(
-    ifelse(
-      nw.lower[
-        "BTC_Volatility",
-        "Pr(>|t|)"
-      ] < 0.05,
-      "Yes",
-      "No"
-    ),
-    ifelse(
-      nw.elevated[
-        "BTC_Volatility",
-        "Pr(>|t|)"
-      ] < 0.05,
-      "Yes",
-      "No"
-    )
+  BP_p = c(
+    diag.low.act.dynamic$BP$p.value,
+    diag.high.act.dynamic$BP$p.value
   )
   
 )
 
-overall.summary$Correlation <-
-  round(
-    overall.summary$Correlation,
-    4
+act.dynamic.diagnostics$JB_p <-
+  format_p(
+    act.dynamic.diagnostics$JB_p
   )
 
-overall.summary$NeweyWest_P_Value <-
-  signif(
-    overall.summary$NeweyWest_P_Value,
-    4
+act.dynamic.diagnostics$BG_2_p <-
+  format_p(
+    act.dynamic.diagnostics$BG_2_p
   )
 
-print(overall.summary)
+act.dynamic.diagnostics$BP_p <-
+  format_p(
+    act.dynamic.diagnostics$BP_p
+  )
+
+act.dynamic.diagnostics
 
 
-###############################################################
-# Section B: Analysis During Major Geopolitical Events
-###############################################################
+# 26. ACT Newey-West inference
 
-#20 Use event windows from shared setup
+nw.low.act.dynamic <- nw_test(
+  model.low.act.dynamic
+)
 
-print(events)
+nw.high.act.dynamic <- nw_test(
+  model.high.act.dynamic
+)
 
-#21 Split data into event windows
+nw.low.act.dynamic
+nw.high.act.dynamic
 
-paris <- subset(
-  
+
+# 27. ACT dynamic comparison
+
+act.dynamic.comparison <- dynamic_comparison(
+  model.low.act.dynamic,
+  model.high.act.dynamic,
+  nw.low.act.dynamic,
+  nw.high.act.dynamic
+)
+
+act.dynamic.comparison
+
+
+# 28. THREAT regime splits
+
+low.threat <- subset(
   data,
-  
-  Date >= events$Start_Date[1] &
-    Date <= events$End_Date[1]
-  
+  GPRD_THREAT_Regime == "Lower GPR"
 )
 
-qatar <- subset(
-  
+high.threat <- subset(
   data,
-  
-  Date >= events$Start_Date[2] &
-    Date <= events$End_Date[2]
-  
-)
-
-turkey.syria <- subset(
-  
-  data,
-  
-  Date >= events$Start_Date[3] &
-    Date <= events$End_Date[3]
-  
-)
-
-bakhmut <- subset(
-  
-  data,
-  
-  Date >= events$Start_Date[4] &
-    Date <= events$End_Date[4]
-  
-)
-
-iran <- subset(
-  
-  data,
-  
-  Date >= events$Start_Date[5] &
-    Date <= events$End_Date[5]
-  
+  GPRD_THREAT_Regime == "Elevated GPR"
 )
 
 
-#22 Summary statistics during major geopolitical events
+# 29. THREAT dynamic regime models
 
-event.statistics <- data.frame(
-  
-  Event = events$Event,
-  
-  Sample_Size = c(
-    nrow(paris),
-    nrow(qatar),
-    nrow(turkey.syria),
-    nrow(bakhmut),
-    nrow(iran)
-  ),
-  
-  Mean_GPR = c(
-    mean(paris$GPRD),
-    mean(qatar$GPRD),
-    mean(turkey.syria$GPRD),
-    mean(bakhmut$GPRD),
-    mean(iran$GPRD)
-  ),
-  
-  SD_GPR = c(
-    sd(paris$GPRD),
-    sd(qatar$GPRD),
-    sd(turkey.syria$GPRD),
-    sd(bakhmut$GPRD),
-    sd(iran$GPRD)
-  ),
-  
-  Mean_BTC_Volatility = c(
-    mean(paris$BTC_Volatility),
-    mean(qatar$BTC_Volatility),
-    mean(turkey.syria$BTC_Volatility),
-    mean(bakhmut$BTC_Volatility),
-    mean(iran$BTC_Volatility)
-  ),
-  
-  SD_BTC_Volatility = c(
-    sd(paris$BTC_Volatility),
-    sd(qatar$BTC_Volatility),
-    sd(turkey.syria$BTC_Volatility),
-    sd(bakhmut$BTC_Volatility),
-    sd(iran$BTC_Volatility)
-  )
-  
+model.low.threat.dynamic <- dynamic_model(low.threat)
+model.high.threat.dynamic <- dynamic_model(high.threat)
+
+
+# 30. THREAT diagnostics
+
+diag.low.threat.dynamic <- model_diagnostics(
+  model.low.threat.dynamic
 )
 
-event.statistics[-1] <- round(
-  event.statistics[-1],
-  4
+diag.high.threat.dynamic <- model_diagnostics(
+  model.high.threat.dynamic
 )
 
-print(event.statistics)
-
-
-#23 Correlation analysis during major geopolitical events
-
-cor.paris <- cor.test(
+threat.dynamic.diagnostics <- data.frame(
   
-  paris$BTC_Volatility,
-  
-  paris$J303_Volatility
-  
-)
-
-cor.qatar <- cor.test(
-  
-  qatar$BTC_Volatility,
-  
-  qatar$J303_Volatility
-  
-)
-
-cor.turkey.syria <- cor.test(
-  
-  turkey.syria$BTC_Volatility,
-  
-  turkey.syria$J303_Volatility
-  
-)
-
-cor.bakhmut <- cor.test(
-  
-  bakhmut$BTC_Volatility,
-  
-  bakhmut$J303_Volatility
-  
-)
-
-cor.iran <- cor.test(
-  
-  iran$BTC_Volatility,
-  
-  iran$J303_Volatility
-  
-)
-
-cor.paris
-
-cor.qatar
-
-cor.turkey.syria
-
-cor.bakhmut
-
-cor.iran
-
-
-#24 Correlation summary table for major geopolitical events
-
-event.correlation.summary <- data.frame(
-  
-  Event = events$Event,
-  
-  Sample_Size = c(
-    nrow(paris),
-    nrow(qatar),
-    nrow(turkey.syria),
-    nrow(bakhmut),
-    nrow(iran)
-  ),
-  
-  Correlation = c(
-    unname(cor.paris$estimate),
-    unname(cor.qatar$estimate),
-    unname(cor.turkey.syria$estimate),
-    unname(cor.bakhmut$estimate),
-    unname(cor.iran$estimate)
-  ),
-  
-  Correlation_P_Value = c(
-    cor.paris$p.value,
-    cor.qatar$p.value,
-    cor.turkey.syria$p.value,
-    cor.bakhmut$p.value,
-    cor.iran$p.value
-  )
-  
-)
-
-event.correlation.summary$Correlation <-
-  round(
-    event.correlation.summary$Correlation,
-    4
-  )
-
-event.correlation.summary$Correlation_P_Value <-
-  signif(
-    event.correlation.summary$Correlation_P_Value,
-    4
-  )
-
-event.correlation.summary$Significant <- ifelse(
-  
-  event.correlation.summary$Correlation_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(event.correlation.summary)
-
-
-#25 Event-specific regression models
-
-# Paris Attacks
-model.paris <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = paris
-  
-)
-
-summary(model.paris)
-
-
-# Qatar Diplomatic Crisis
-model.qatar <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = qatar
-  
-)
-
-summary(model.qatar)
-
-
-# Turkey-Syria Escalation
-model.turkey.syria <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = turkey.syria
-  
-)
-
-summary(model.turkey.syria)
-
-
-# Russia-Ukraine / Bakhmut
-model.bakhmut <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = bakhmut
-  
-)
-
-summary(model.bakhmut)
-
-
-# US-Israel-Iran Conflict
-model.iran <- lm(
-  
-  J303_Volatility ~
-    BTC_Volatility,
-  
-  data = iran
-  
-)
-
-summary(model.iran)
-
-
-#26 Event-specific regression diagnostics
-
-# Diagnostic plots
-par(mfrow = c(2,2))
-
-plot(model.paris)
-
-plot(model.qatar)
-
-plot(model.turkey.syria)
-
-plot(model.bakhmut)
-
-plot(model.iran)
-
-par(mfrow = c(1,1))
-
-
-# Jarque-Bera tests for residual normality
-jb.paris <- jarque.bera.test(
-  residuals(model.paris)
-)
-
-jb.qatar <- jarque.bera.test(
-  residuals(model.qatar)
-)
-
-jb.turkey.syria <- jarque.bera.test(
-  residuals(model.turkey.syria)
-)
-
-jb.bakhmut <- jarque.bera.test(
-  residuals(model.bakhmut)
-)
-
-jb.iran <- jarque.bera.test(
-  residuals(model.iran)
-)
-
-jb.paris
-
-jb.qatar
-
-jb.turkey.syria
-
-jb.bakhmut
-
-jb.iran
-
-
-# Durbin-Watson tests for residual autocorrelation
-dw.paris <- dwtest(
-  model.paris
-)
-
-dw.qatar <- dwtest(
-  model.qatar
-)
-
-dw.turkey.syria <- dwtest(
-  model.turkey.syria
-)
-
-dw.bakhmut <- dwtest(
-  model.bakhmut
-)
-
-dw.iran <- dwtest(
-  model.iran
-)
-
-dw.paris
-
-dw.qatar
-
-dw.turkey.syria
-
-dw.bakhmut
-
-dw.iran
-
-
-# Breusch-Pagan tests for heteroskedasticity
-bp.paris <- bptest(
-  model.paris
-)
-
-bp.qatar <- bptest(
-  model.qatar
-)
-
-bp.turkey.syria <- bptest(
-  model.turkey.syria
-)
-
-bp.bakhmut <- bptest(
-  model.bakhmut
-)
-
-bp.iran <- bptest(
-  model.iran
-)
-
-bp.paris
-
-bp.qatar
-
-bp.turkey.syria
-
-bp.bakhmut
-
-bp.iran
-
-
-#27 Newey-West robust inference for event-specific regressions
-
-nw.paris <- coeftest(
-  
-  model.paris,
-  
-  vcov = NeweyWest(
-    model.paris,
-    prewhite = FALSE
-  )
-  
-)
-
-nw.qatar <- coeftest(
-  
-  model.qatar,
-  
-  vcov = NeweyWest(
-    model.qatar,
-    prewhite = FALSE
-  )
-  
-)
-
-nw.turkey.syria <- coeftest(
-  
-  model.turkey.syria,
-  
-  vcov = NeweyWest(
-    model.turkey.syria,
-    prewhite = FALSE
-  )
-  
-)
-
-nw.bakhmut <- coeftest(
-  
-  model.bakhmut,
-  
-  vcov = NeweyWest(
-    model.bakhmut,
-    prewhite = FALSE
-  )
-  
-)
-
-nw.iran <- coeftest(
-  
-  model.iran,
-  
-  vcov = NeweyWest(
-    model.iran,
-    prewhite = FALSE
-  )
-  
-)
-
-nw.paris
-
-nw.qatar
-
-nw.turkey.syria
-
-nw.bakhmut
-
-nw.iran
-
-
-#28 Event-specific regression summary table
-
-event.overall <- data.frame(
-  
-  Event = events$Event,
-  
-  Sample_Size = c(
-    nrow(paris),
-    nrow(qatar),
-    nrow(turkey.syria),
-    nrow(bakhmut),
-    nrow(iran)
-  ),
-  
-  Correlation = c(
-    unname(cor.paris$estimate),
-    unname(cor.qatar$estimate),
-    unname(cor.turkey.syria$estimate),
-    unname(cor.bakhmut$estimate),
-    unname(cor.iran$estimate)
-  ),
-  
-  BTC_Coefficient = c(
-    coef(model.paris)[2],
-    coef(model.qatar)[2],
-    coef(model.turkey.syria)[2],
-    coef(model.bakhmut)[2],
-    coef(model.iran)[2]
-  ),
-  
-  Adj_R2 = c(
-    summary(model.paris)$adj.r.squared,
-    summary(model.qatar)$adj.r.squared,
-    summary(model.turkey.syria)$adj.r.squared,
-    summary(model.bakhmut)$adj.r.squared,
-    summary(model.iran)$adj.r.squared
-  ),
-  
-  Residual_SE = c(
-    summary(model.paris)$sigma,
-    summary(model.qatar)$sigma,
-    summary(model.turkey.syria)$sigma,
-    summary(model.bakhmut)$sigma,
-    summary(model.iran)$sigma
-  ),
-  
-  NeweyWest_P_Value = c(
-    nw.paris[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    nw.qatar[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    nw.turkey.syria[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    nw.bakhmut[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    nw.iran[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ]
-  )
-  
-)
-
-event.overall$Correlation <-
-  round(
-    event.overall$Correlation,
-    4
-  )
-
-event.overall$BTC_Coefficient <-
-  signif(
-    event.overall$BTC_Coefficient,
-    4
-  )
-
-event.overall$Adj_R2 <-
-  round(
-    event.overall$Adj_R2,
-    4
-  )
-
-event.overall$Residual_SE <-
-  signif(
-    event.overall$Residual_SE,
-    4
-  )
-
-event.overall$NeweyWest_P_Value <-
-  signif(
-    event.overall$NeweyWest_P_Value,
-    4
-  )
-
-event.overall$Significant <- ifelse(
-  
-  event.overall$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(event.overall)
-
-
-#29 Pairwise Fisher r-to-z tests comparing event correlations
-
-r.paris <- cor.paris$estimate
-
-r.qatar <- cor.qatar$estimate
-
-r.turkey.syria <- cor.turkey.syria$estimate
-
-r.bakhmut <- cor.bakhmut$estimate
-
-r.iran <- cor.iran$estimate
-
-
-z.paris.qatar <- (
-  atanh(r.paris) -
-    atanh(r.qatar)
-) /
-  sqrt(
-    1 / (nrow(paris) - 3) +
-      1 / (nrow(qatar) - 3)
-  )
-
-z.paris.turkey.syria <- (
-  atanh(r.paris) -
-    atanh(r.turkey.syria)
-) /
-  sqrt(
-    1 / (nrow(paris) - 3) +
-      1 / (nrow(turkey.syria) - 3)
-  )
-
-z.paris.bakhmut <- (
-  atanh(r.paris) -
-    atanh(r.bakhmut)
-) /
-  sqrt(
-    1 / (nrow(paris) - 3) +
-      1 / (nrow(bakhmut) - 3)
-  )
-
-z.paris.iran <- (
-  atanh(r.paris) -
-    atanh(r.iran)
-) /
-  sqrt(
-    1 / (nrow(paris) - 3) +
-      1 / (nrow(iran) - 3)
-  )
-
-z.qatar.turkey.syria <- (
-  atanh(r.qatar) -
-    atanh(r.turkey.syria)
-) /
-  sqrt(
-    1 / (nrow(qatar) - 3) +
-      1 / (nrow(turkey.syria) - 3)
-  )
-
-z.qatar.bakhmut <- (
-  atanh(r.qatar) -
-    atanh(r.bakhmut)
-) /
-  sqrt(
-    1 / (nrow(qatar) - 3) +
-      1 / (nrow(bakhmut) - 3)
-  )
-
-z.qatar.iran <- (
-  atanh(r.qatar) -
-    atanh(r.iran)
-) /
-  sqrt(
-    1 / (nrow(qatar) - 3) +
-      1 / (nrow(iran) - 3)
-  )
-
-z.turkey.syria.bakhmut <- (
-  atanh(r.turkey.syria) -
-    atanh(r.bakhmut)
-) /
-  sqrt(
-    1 / (nrow(turkey.syria) - 3) +
-      1 / (nrow(bakhmut) - 3)
-  )
-
-z.turkey.syria.iran <- (
-  atanh(r.turkey.syria) -
-    atanh(r.iran)
-) /
-  sqrt(
-    1 / (nrow(turkey.syria) - 3) +
-      1 / (nrow(iran) - 3)
-  )
-
-z.bakhmut.iran <- (
-  atanh(r.bakhmut) -
-    atanh(r.iran)
-) /
-  sqrt(
-    1 / (nrow(bakhmut) - 3) +
-      1 / (nrow(iran) - 3)
-  )
-
-
-pairwise.z <- data.frame(
-  
-  Comparison = c(
-    "Paris Attacks vs Qatar Diplomatic Crisis",
-    "Paris Attacks vs Turkey-Syria Escalation",
-    "Paris Attacks vs Russia-Ukraine / Bakhmut",
-    "Paris Attacks vs US-Israel-Iran Conflict",
-    "Qatar Diplomatic Crisis vs Turkey-Syria Escalation",
-    "Qatar Diplomatic Crisis vs Russia-Ukraine / Bakhmut",
-    "Qatar Diplomatic Crisis vs US-Israel-Iran Conflict",
-    "Turkey-Syria Escalation vs Russia-Ukraine / Bakhmut",
-    "Turkey-Syria Escalation vs US-Israel-Iran Conflict",
-    "Russia-Ukraine / Bakhmut vs US-Israel-Iran Conflict"
-  ),
-  
-  Z_Statistic = c(
-    z.paris.qatar,
-    z.paris.turkey.syria,
-    z.paris.bakhmut,
-    z.paris.iran,
-    z.qatar.turkey.syria,
-    z.qatar.bakhmut,
-    z.qatar.iran,
-    z.turkey.syria.bakhmut,
-    z.turkey.syria.iran,
-    z.bakhmut.iran
-  )
-  
-)
-
-pairwise.z$P_Value <- 2 * (
-  1 -
-    pnorm(
-      abs(pairwise.z$Z_Statistic)
-    )
-)
-
-pairwise.z$Z_Statistic <-
-  round(
-    pairwise.z$Z_Statistic,
-    4
-  )
-
-pairwise.z$P_Value <-
-  signif(
-    pairwise.z$P_Value,
-    4
-  )
-
-pairwise.z$Significant <- ifelse(
-  
-  pairwise.z$P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
-  
-)
-
-print(pairwise.z)
-
-# Note: Pairwise Fisher r-to-z tests are treated as exploratory because
-# event-window observations are time-series observations and may not be
-# independent. The event regressions therefore use Newey-West robust inference
-# as the primary basis for statistical significance.
-
-# Note: Ten pairwise correlation comparisons are conducted, creating a
-# multiple-comparison issue. The treatment of these tests should be discussed
-# with the thesis partner and supervisor, including whether to retain the
-# unadjusted results, apply a multiple-comparison adjustment, or present them
-# as exploratory results.
-
-
-###############################################################
-# Section C: Comparative Analysis
-###############################################################
-
-#30 Correlation comparison plot
-
-comparison.plot <- data.frame(
-  
-  Analysis = factor(
-    
-    c(
-      "Overall",
-      "Lower GPR",
-      "Elevated GPR",
-      "Paris\nAttacks",
-      "Qatar\nDiplomatic\nCrisis",
-      "Turkey-Syria\nEscalation",
-      "Russia-Ukraine\n/ Bakhmut",
-      "US-Israel-Iran\nConflict"
-    ),
-    
-    levels = c(
-      "Overall",
-      "Lower GPR",
-      "Elevated GPR",
-      "Paris\nAttacks",
-      "Qatar\nDiplomatic\nCrisis",
-      "Turkey-Syria\nEscalation",
-      "Russia-Ukraine\n/ Bakhmut",
-      "US-Israel-Iran\nConflict"
-    )
-    
-  ),
-  
-  Correlation = c(
-    
-    overall.cor$estimate,
-    
-    cor.lower$estimate,
-    
-    cor.elevated$estimate,
-    
-    cor.paris$estimate,
-    
-    cor.qatar$estimate,
-    
-    cor.turkey.syria$estimate,
-    
-    cor.bakhmut$estimate,
-    
-    cor.iran$estimate
-    
-  ),
-  
-  Group = c(
-    
-    "Overall",
-    
-    "Regime",
-    
-    "Regime",
-    
-    "Conflict",
-    
-    "Conflict",
-    
-    "Conflict",
-    
-    "Conflict",
-    
-    "Conflict"
-    
-  )
-  
-)
-
-
-ggplot(
-  comparison.plot,
-  aes(
-    x = Analysis,
-    y = Correlation,
-    fill = Group
-  )
-) +
-  
-  geom_col(
-    width = 0.6,
-    colour = "black"
-  ) +
-  
-  geom_hline(
-    yintercept = 0,
-    linetype = "dashed"
-  ) +
-  
-  coord_cartesian(
-    ylim = c(-1, 1)
-  ) +
-  
-  scale_fill_manual(
-    values = c(
-      "Overall" = "grey20",
-      "Regime" = "grey55",
-      "Conflict" = "grey80"
-    )
-  ) +
-  
-  theme_minimal() +
-  
-  theme(
-    plot.title = element_text(
-      size = 14,
-      face = "bold",
-      hjust = 0.5
-    ),
-    
-    axis.title = element_text(
-      size = 12
-    ),
-    
-    axis.text = element_text(
-      size = 11
-    ),
-    
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1,
-      vjust = 1,
-      size = 10
-    ),
-    
-    legend.title = element_text(
-      size = 11
-    ),
-    
-    legend.text = element_text(
-      size = 10
-    )
-  ) +
-  
-  labs(
-    title = "Bitcoin–J303 Conditional Volatility Correlations",
-    x = "",
-    y = "Pearson Correlation",
-    fill = "Analysis"
-  ) +
-  
-  scale_x_discrete(
-    labels = c(
-      "Overall" = "Overall",
-      "Lower GPR" = "Lower\nGPR",
-      "Elevated GPR" = "Elevated\nGPR",
-      "Paris\nAttacks" = "Paris\nAttacks",
-      "Qatar\nDiplomatic\nCrisis" = "Qatar\nDiplomatic\nCrisis",
-      "Turkey-Syria\nEscalation" = "Turkey-Syria\nEscalation",
-      "Russia-Ukraine\n/ Bakhmut" = "Russia-Ukraine\n/ Bakhmut",
-      "US-Israel-Iran\nConflict" = "US-Israel-Iran\nConflict"
-    )
-  )
-
-#31 Regression coefficient comparison plot
-
-coefficient.plot <- data.frame(
-  
-  Analysis = factor(
-    
-    c(
-      "Overall",
-      "Lower GPR",
-      "Elevated GPR",
-      "Paris\nAttacks",
-      "Qatar\nDiplomatic\nCrisis",
-      "Turkey-Syria\nEscalation",
-      "Russia-Ukraine\n/ Bakhmut",
-      "US-Israel-Iran\nConflict"
-    ),
-    levels = c(
-      "Overall",
-      "Lower GPR",
-      "Elevated GPR",
-      "Paris\nAttacks",
-      "Qatar\nDiplomatic\nCrisis",
-      "Turkey-Syria\nEscalation",
-      "Russia-Ukraine\n/ Bakhmut",
-      "US-Israel-Iran\nConflict"
-    )
-    
-  ),
-  
-  BTC_Coefficient = c(
-    
-    coef(overall.model)[2],
-    
-    coef(model.lower)[2],
-    
-    coef(model.elevated)[2],
-    
-    coef(model.paris)[2],
-    
-    coef(model.qatar)[2],
-    
-    coef(model.turkey.syria)[2],
-    
-    coef(model.bakhmut)[2],
-    
-    coef(model.iran)[2]
-    
-  ),
-  
-  Group = c(
-    
-    "Overall",
-    
-    "Regime",
-    
-    "Regime",
-    
-    "Conflict",
-    
-    "Conflict",
-    
-    "Conflict",
-    
-    "Conflict",
-    
-    "Conflict"
-    
-  )
-  
-)
-
-
-ggplot(
-  coefficient.plot,
-  aes(
-    x = Analysis,
-    y = BTC_Coefficient,
-    fill = Group
-  )
-) +
-  
-  geom_col(
-    width = 0.6,
-    colour = "black"
-  ) +
-  
-  geom_hline(
-    yintercept = 0,
-    linetype = "dashed"
-  ) +
-  
-  scale_fill_manual(
-    values = c(
-      "Overall" = "grey20",
-      "Regime" = "grey55",
-      "Conflict" = "grey80"
-    )
-  ) +
-  
-  theme_minimal() +
-  
-  theme(
-    plot.title = element_text(
-      size = 14,
-      face = "bold",
-      hjust = 0.5
-    ),
-    
-    axis.title = element_text(
-      size = 12
-    ),
-    
-    axis.text = element_text(
-      size = 11
-    ),
-    
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1,
-      vjust = 1,
-      size = 10
-    ),
-    
-    legend.title = element_text(
-      size = 11
-    ),
-    
-    legend.text = element_text(
-      size = 10
-    )
-  ) +
-  
-  labs(
-    title = "Bitcoin–J303 Volatility Regression Coefficients",
-    x = "",
-    y = "Regression Coefficient",
-    fill = "Analysis"
-  ) +
-  
-  scale_x_discrete(
-    labels = c(
-      "Overall" = "Overall",
-      "Lower GPR" = "Lower\nGPR",
-      "Elevated GPR" = "Elevated\nGPR",
-      "Paris\nAttacks" = "Paris\nAttacks",
-      "Qatar\nDiplomatic\nCrisis" = "Qatar\nDiplomatic\nCrisis",
-      "Turkey-Syria\nEscalation" = "Turkey-Syria\nEscalation",
-      "Russia-Ukraine\n/ Bakhmut" = "Russia-Ukraine\n/ Bakhmut",
-      "US-Israel-Iran\nConflict" = "US-Israel-Iran\nConflict"
-    )
-  )
-
-
-#32 Overall empirical summary
-
-overall.results <- data.frame(
-  
-  Analysis = c(
-    "Overall",
+  Regime = c(
     "Lower GPR",
+    "Elevated GPR"
+  ),
+  
+  JB_p = c(
+    diag.low.threat.dynamic$JB$p.value,
+    diag.high.threat.dynamic$JB$p.value
+  ),
+  
+  BG_2_p = c(
+    diag.low.threat.dynamic$BG$p.value,
+    diag.high.threat.dynamic$BG$p.value
+  ),
+  
+  BP_p = c(
+    diag.low.threat.dynamic$BP$p.value,
+    diag.high.threat.dynamic$BP$p.value
+  )
+  
+)
+
+threat.dynamic.diagnostics$JB_p <-
+  format_p(
+    threat.dynamic.diagnostics$JB_p
+  )
+
+threat.dynamic.diagnostics$BG_2_p <-
+  format_p(
+    threat.dynamic.diagnostics$BG_2_p
+  )
+
+threat.dynamic.diagnostics$BP_p <-
+  format_p(
+    threat.dynamic.diagnostics$BP_p
+  )
+
+threat.dynamic.diagnostics
+
+
+# 31. THREAT Newey-West inference
+
+nw.low.threat.dynamic <- nw_test(
+  model.low.threat.dynamic
+)
+
+nw.high.threat.dynamic <- nw_test(
+  model.high.threat.dynamic
+)
+
+nw.low.threat.dynamic
+nw.high.threat.dynamic
+
+
+# 32. THREAT dynamic comparison
+
+threat.dynamic.comparison <- dynamic_comparison(
+  model.low.threat.dynamic,
+  model.high.threat.dynamic,
+  nw.low.threat.dynamic,
+  nw.high.threat.dynamic
+)
+
+threat.dynamic.comparison
+
+
+###############################################################
+# Section F: Alternative GPR Interaction Models
+###############################################################
+
+# 33. ACT dynamic interaction model
+
+act.interaction.model <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2 +
+    BTC_Volatility * GPRD_ACT_Regime +
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = data
+)
+
+
+# 34. ACT Newey-West inference
+
+nw.act.interaction <- nw_test(
+  act.interaction.model
+)
+
+nw.act.interaction
+
+
+# 35. ACT interaction diagnostics
+
+diag.act.interaction <- model_diagnostics(
+  act.interaction.model
+)
+
+act.interaction.diagnostics <- data.frame(
+  
+  JB_p = diag.act.interaction$JB$p.value,
+  BG_2_p = diag.act.interaction$BG$p.value,
+  BP_p = diag.act.interaction$BP$p.value
+  
+)
+
+act.interaction.diagnostics$JB_p <-
+  format_p(
+    act.interaction.diagnostics$JB_p
+  )
+
+act.interaction.diagnostics$BG_2_p <-
+  format_p(
+    act.interaction.diagnostics$BG_2_p
+  )
+
+act.interaction.diagnostics$BP_p <-
+  format_p(
+    act.interaction.diagnostics$BP_p
+  )
+
+act.interaction.diagnostics
+
+
+# 36. ACT interaction summary
+
+act.interaction.summary <- data.frame(
+  
+  Variable = c(
+    "BTC Volatility",
     "Elevated GPR",
-    "Paris Attacks",
-    "Qatar Diplomatic Crisis",
-    "Turkey-Syria Escalation",
-    "Russia-Ukraine / Bakhmut",
-    "US-Israel-Iran Conflict"
+    "BTC Volatility × Elevated GPR"
   ),
   
-  Correlation = c(
-    
-    unname(overall.cor$estimate),
-    
-    unname(cor.lower$estimate),
-    
-    unname(cor.elevated$estimate),
-    
-    unname(cor.paris$estimate),
-    
-    unname(cor.qatar$estimate),
-    
-    unname(cor.turkey.syria$estimate),
-    
-    unname(cor.bakhmut$estimate),
-    
-    unname(cor.iran$estimate)
-    
+  Estimate = c(
+    coef(act.interaction.model)[
+      "BTC_Volatility"
+    ],
+    coef(act.interaction.model)[
+      "GPRD_ACT_RegimeElevated GPR"
+    ],
+    coef(act.interaction.model)[
+      "BTC_Volatility:GPRD_ACT_RegimeElevated GPR"
+    ]
   ),
   
-  BTC_Volatility_Coefficient = c(
-    
-    coef(overall.model)[2],
-    
-    coef(model.lower)[2],
-    
-    coef(model.elevated)[2],
-    
-    coef(model.paris)[2],
-    
-    coef(model.qatar)[2],
-    
-    coef(model.turkey.syria)[2],
-    
-    coef(model.bakhmut)[2],
-    
-    coef(model.iran)[2]
-    
+  Robust_SE = c(
+    nw.act.interaction[
+      "BTC_Volatility",
+      "Std. Error"
+    ],
+    nw.act.interaction[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Std. Error"
+    ],
+    nw.act.interaction[
+      "BTC_Volatility:GPRD_ACT_RegimeElevated GPR",
+      "Std. Error"
+    ]
   ),
   
-  Adj_R2 = c(
-    
-    summary(overall.model)$adj.r.squared,
-    
-    summary(model.lower)$adj.r.squared,
-    
-    summary(model.elevated)$adj.r.squared,
-    
-    summary(model.paris)$adj.r.squared,
-    
-    summary(model.qatar)$adj.r.squared,
-    
-    summary(model.turkey.syria)$adj.r.squared,
-    
-    summary(model.bakhmut)$adj.r.squared,
-    
-    summary(model.iran)$adj.r.squared
-    
-  ),
-  
-  NeweyWest_P_Value = c(
-    
-    nw.overall[
+  P_Value = c(
+    nw.act.interaction[
       "BTC_Volatility",
       "Pr(>|t|)"
     ],
-    
-    nw.lower[
-      "BTC_Volatility",
+    nw.act.interaction[
+      "GPRD_ACT_RegimeElevated GPR",
       "Pr(>|t|)"
     ],
-    
-    nw.elevated[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    
-    nw.paris[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    
-    nw.qatar[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    
-    nw.turkey.syria[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    
-    nw.bakhmut[
-      "BTC_Volatility",
-      "Pr(>|t|)"
-    ],
-    
-    nw.iran[
-      "BTC_Volatility",
+    nw.act.interaction[
+      "BTC_Volatility:GPRD_ACT_RegimeElevated GPR",
       "Pr(>|t|)"
     ]
-    
   )
   
 )
 
-overall.results$Correlation <-
-  round(
-    overall.results$Correlation,
-    4
-  )
+act.interaction.summary[-1] <- lapply(
+  act.interaction.summary[-1],
+  signif,
+  digits = 4
+)
 
-overall.results$BTC_Volatility_Coefficient <-
-  signif(
-    overall.results$BTC_Volatility_Coefficient,
-    4
-  )
+act.interaction.summary
 
-overall.results$Adj_R2 <-
-  round(
-    overall.results$Adj_R2,
-    4
-  )
 
-overall.results$NeweyWest_P_Value <-
-  signif(
-    overall.results$NeweyWest_P_Value,
-    4
-  )
+# 37. THREAT dynamic interaction model
 
-overall.results$Significant <- ifelse(
+threat.interaction.model <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2 +
+    BTC_Volatility * GPRD_THREAT_Regime +
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = data
+)
+
+
+# 38. THREAT Newey-West inference
+
+nw.threat.interaction <- nw_test(
+  threat.interaction.model
+)
+
+nw.threat.interaction
+
+
+# 39. THREAT interaction diagnostics
+
+diag.threat.interaction <- model_diagnostics(
+  threat.interaction.model
+)
+
+threat.interaction.diagnostics <- data.frame(
   
-  overall.results$NeweyWest_P_Value < 0.05,
-  
-  "Yes",
-  
-  "No"
+  JB_p = diag.threat.interaction$JB$p.value,
+  BG_2_p = diag.threat.interaction$BG$p.value,
+  BP_p = diag.threat.interaction$BP$p.value
   
 )
 
-print(overall.results)
+threat.interaction.diagnostics$JB_p <-
+  format_p(
+    threat.interaction.diagnostics$JB_p
+  )
+
+threat.interaction.diagnostics$BG_2_p <-
+  format_p(
+    threat.interaction.diagnostics$BG_2_p
+  )
+
+threat.interaction.diagnostics$BP_p <-
+  format_p(
+    threat.interaction.diagnostics$BP_p
+  )
+
+threat.interaction.diagnostics
+
+
+# 40. THREAT interaction summary
+
+threat.interaction.summary <- data.frame(
+  
+  Variable = c(
+    "BTC Volatility",
+    "Elevated GPR",
+    "BTC Volatility × Elevated GPR"
+  ),
+  
+  Estimate = c(
+    coef(threat.interaction.model)[
+      "BTC_Volatility"
+    ],
+    coef(threat.interaction.model)[
+      "GPRD_THREAT_RegimeElevated GPR"
+    ],
+    coef(threat.interaction.model)[
+      "BTC_Volatility:GPRD_THREAT_RegimeElevated GPR"
+    ]
+  ),
+  
+  Robust_SE = c(
+    nw.threat.interaction[
+      "BTC_Volatility",
+      "Std. Error"
+    ],
+    nw.threat.interaction[
+      "GPRD_THREAT_RegimeElevated GPR",
+      "Std. Error"
+    ],
+    nw.threat.interaction[
+      "BTC_Volatility:GPRD_THREAT_RegimeElevated GPR",
+      "Std. Error"
+    ]
+  ),
+  
+  P_Value = c(
+    nw.threat.interaction[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    nw.threat.interaction[
+      "GPRD_THREAT_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ],
+    nw.threat.interaction[
+      "BTC_Volatility:GPRD_THREAT_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ]
+  )
+  
+)
+
+threat.interaction.summary[-1] <- lapply(
+  threat.interaction.summary[-1],
+  signif,
+  digits = 4
+)
+
+threat.interaction.summary
+
+
+###############################################################
+# Section G: Final Results
+###############################################################
+
+# 41. Dynamic regime results
+
+dynamic.comparison
+act.dynamic.comparison
+threat.dynamic.comparison
+
+
+# 42. GPRD interaction results
+
+interaction.summary
+
+
+# 43. ACT interaction results
+
+act.interaction.summary
+
+
+# 44. THREAT interaction results
+
+threat.interaction.summary
 

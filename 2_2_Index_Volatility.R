@@ -8,22 +8,30 @@ library(FinTS)
 
 data <- na.omit(data0)
 
-btc <- data$BTC_log_returns
+J303 <- data$Index_log_returns
 
 
 # 3. Visual Diagnostics
 
-acf(btc,
-    main = "ACF of Bitcoin Returns")
+acf(
+  J303,
+  main = "ACF of J303 Returns"
+)
 
-pacf(btc,
-     main = "PACF of Bitcoin Returns")
+pacf(
+  J303,
+  main = "PACF of J303 Returns"
+)
 
-acf(btc^2,
-    main = "ACF of Squared Bitcoin Returns")
+acf(
+  J303^2,
+  main = "ACF of Squared J303 Returns"
+)
 
-pacf(btc^2,
-     main = "PACF of Squared Bitcoin Returns")
+pacf(
+  J303^2,
+  main = "PACF of Squared J303 Returns"
+)
 
 
 # 4. Specify Candidate Volatility Models
@@ -34,16 +42,15 @@ spec.garch <- ugarchspec(
   
   variance.model = list(
     model = "sGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,0),
+    armaOrder = c(0, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
@@ -53,16 +60,15 @@ spec.egarch <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,0),
+    armaOrder = c(0, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
@@ -72,16 +78,15 @@ spec.gjr <- ugarchspec(
   
   variance.model = list(
     model = "gjrGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,0),
+    armaOrder = c(0, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
@@ -89,17 +94,17 @@ spec.gjr <- ugarchspec(
 
 fit.garch <- ugarchfit(
   spec = spec.garch,
-  data = btc
+  data = J303
 )
 
 fit.egarch <- ugarchfit(
   spec = spec.egarch,
-  data = btc
+  data = J303
 )
 
 fit.gjr <- ugarchfit(
   spec = spec.gjr,
-  data = btc
+  data = J303
 )
 
 
@@ -148,137 +153,134 @@ comparison <- data.frame(
 comparison
 
 
-# 7. Test Alternative EGARCH Mean Specifications
+# 7. Compare Mean Specifications for EGARCH
 
 # EGARCH with ARMA(1,0)
 
-spec.egarch.ar10 <- ugarchspec(
+spec.egarch10 <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(1,0),
+    armaOrder = c(1, 0),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
 # EGARCH with ARMA(0,1)
 
-spec.egarch.ma01 <- ugarchspec(
+spec.egarch01 <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(0,1),
+    armaOrder = c(0, 1),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
 # EGARCH with ARMA(1,1)
 
-spec.egarch.ar11 <- ugarchspec(
+spec.egarch11 <- ugarchspec(
   
   variance.model = list(
     model = "eGARCH",
-    garchOrder = c(1,1)
+    garchOrder = c(1, 1)
   ),
   
   mean.model = list(
-    armaOrder = c(1,1),
+    armaOrder = c(1, 1),
     include.mean = TRUE
   ),
   
   distribution.model = "std"
-  
 )
 
 
 # Estimate alternative mean specifications
 
-fit.egarch.ar10 <- ugarchfit(
-  spec = spec.egarch.ar10,
-  data = btc
+fit.egarch10 <- ugarchfit(
+  spec = spec.egarch10,
+  data = J303
 )
 
-fit.egarch.ma01 <- ugarchfit(
-  spec = spec.egarch.ma01,
-  data = btc
+fit.egarch01 <- ugarchfit(
+  spec = spec.egarch01,
+  data = J303
 )
 
-fit.egarch.ar11 <- ugarchfit(
-  spec = spec.egarch.ar11,
-  data = btc
+fit.egarch11 <- ugarchfit(
+  spec = spec.egarch11,
+  data = J303
 )
 
 
 # 8. Compare EGARCH Mean Specifications
 
-mean_comparison <- data.frame(
+arma.comparison <- data.frame(
   
   Model = c(
-    "EGARCH ARMA(0,0)",
-    "EGARCH ARMA(1,0)",
-    "EGARCH ARMA(0,1)",
-    "EGARCH ARMA(1,1)"
+    "ARMA(0,0)-EGARCH",
+    "ARMA(1,0)-EGARCH",
+    "ARMA(0,1)-EGARCH",
+    "ARMA(1,1)-EGARCH"
   ),
   
   LogLikelihood = c(
     likelihood(fit.egarch),
-    likelihood(fit.egarch.ar10),
-    likelihood(fit.egarch.ma01),
-    likelihood(fit.egarch.ar11)
+    likelihood(fit.egarch10),
+    likelihood(fit.egarch01),
+    likelihood(fit.egarch11)
   ),
   
   AIC = c(
     infocriteria(fit.egarch)[1],
-    infocriteria(fit.egarch.ar10)[1],
-    infocriteria(fit.egarch.ma01)[1],
-    infocriteria(fit.egarch.ar11)[1]
+    infocriteria(fit.egarch10)[1],
+    infocriteria(fit.egarch01)[1],
+    infocriteria(fit.egarch11)[1]
   ),
   
   BIC = c(
     infocriteria(fit.egarch)[2],
-    infocriteria(fit.egarch.ar10)[2],
-    infocriteria(fit.egarch.ma01)[2],
-    infocriteria(fit.egarch.ar11)[2]
+    infocriteria(fit.egarch10)[2],
+    infocriteria(fit.egarch01)[2],
+    infocriteria(fit.egarch11)[2]
   ),
   
   Shibata = c(
     infocriteria(fit.egarch)[3],
-    infocriteria(fit.egarch.ar10)[3],
-    infocriteria(fit.egarch.ma01)[3],
-    infocriteria(fit.egarch.ar11)[3]
+    infocriteria(fit.egarch10)[3],
+    infocriteria(fit.egarch01)[3],
+    infocriteria(fit.egarch11)[3]
   ),
   
   HannanQuinn = c(
     infocriteria(fit.egarch)[4],
-    infocriteria(fit.egarch.ar10)[4],
-    infocriteria(fit.egarch.ma01)[4],
-    infocriteria(fit.egarch.ar11)[4]
+    infocriteria(fit.egarch10)[4],
+    infocriteria(fit.egarch01)[4],
+    infocriteria(fit.egarch11)[4]
   )
   
 )
 
-mean_comparison
+arma.comparison
 
 
 # 9. Residual Autocorrelation for Alternative Mean Specifications
 
-# EGARCH ARMA(0,0)
+# ARMA(0,0)-EGARCH
 
 Box.test(
   residuals(fit.egarch, standardize = TRUE),
@@ -287,40 +289,38 @@ Box.test(
 )
 
 
-# EGARCH ARMA(1,0)
+# ARMA(1,0)-EGARCH
 
 Box.test(
-  residuals(fit.egarch.ar10, standardize = TRUE),
+  residuals(fit.egarch10, standardize = TRUE),
   lag = 20,
   type = "Ljung-Box"
 )
 
 
-# EGARCH ARMA(0,1)
+# ARMA(0,1)-EGARCH
 
 Box.test(
-  residuals(fit.egarch.ma01, standardize = TRUE),
+  residuals(fit.egarch01, standardize = TRUE),
   lag = 20,
   type = "Ljung-Box"
 )
 
 
-# EGARCH ARMA(1,1)
+# ARMA(1,1)-EGARCH
 
 Box.test(
-  residuals(fit.egarch.ar11, standardize = TRUE),
+  residuals(fit.egarch11, standardize = TRUE),
   lag = 20,
   type = "Ljung-Box"
 )
 
 
-# 10. Display Alternative EGARCH Models
+# 10. Display Selected EGARCH Model
 
-show(fit.egarch.ar10)
+# ARMA(0,0)-EGARCH is used as the reference model.
 
-show(fit.egarch.ma01)
-
-show(fit.egarch.ar11)
+show(fit.egarch)
 
 
 # 11. Variance Persistence
@@ -339,8 +339,6 @@ nyblom(fit.egarch)
 
 # 13. Extract Conditional Volatility
 
-# EGARCH ARMA(0,0) is used as the reference model.
-
 volatility <- sigma(fit.egarch)
 
 std.residuals <- residuals(
@@ -348,27 +346,31 @@ std.residuals <- residuals(
   standardize = TRUE
 )
 
-data$BTC_Volatility <- as.numeric(volatility)
+data$J303_Volatility <- as.numeric(volatility)
 
 
 # 14. Conditional Volatility Plot
 
-plot(data$Date,
-     volatility,
-     type = "l",
-     main = "Estimated Bitcoin Conditional Volatility",
-     xlab = "Date",
-     ylab = "Conditional Volatility")
+plot(
+  data$Date,
+  volatility,
+  type = "l",
+  main = "Estimated J303 Conditional Volatility",
+  xlab = "Date",
+  ylab = "Conditional Volatility"
+)
 
 
 # 15. Standardized Residuals
 
-plot(data$Date,
-     std.residuals,
-     type = "l",
-     main = "Standardized Residuals",
-     xlab = "Date",
-     ylab = "Standardized Residual")
+plot(
+  data$Date,
+  std.residuals,
+  type = "l",
+  main = "Standardized Residuals",
+  xlab = "Date",
+  ylab = "Standardized Residual"
+)
 
 
 # 16. Residual Distribution

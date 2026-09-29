@@ -177,16 +177,13 @@ run_event_study <- function(smoothing_window) {
     event.models,
     function(model) {
       
-      # Newey-West HAC inference.
-      # Use the automatic Newey-West lag unless it exceeds the number
-      # of available observations. In that case, cap it at n - 1.
-      # This prevents the sandwich package from generating more HAC
-      # weights than observations for very small event samples.
       n_obs <- nobs(model)
+      
+      # Newey-West lag length
       nw_lag <- max(
         0,
         min(
-          floor(4 * (n_obs / 100)^(2 / 9)),
+          floor(4 * (n_obs / 100)^(2/9)),
           n_obs - 1
         )
       )
@@ -471,4 +468,6 @@ event.stability <- do.call(
 rownames(event.stability) <- NULL
 
 event.stability
+
+
 

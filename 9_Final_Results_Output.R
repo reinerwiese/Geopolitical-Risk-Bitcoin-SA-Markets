@@ -1,40 +1,67 @@
-# 9_Final_Results_Output.R
-# Standardised thesis-ready tables and figures from Scripts 0-8.
-
-rm(list = ls())
+# 1. Load Packages
 
 library(dplyr)
 library(ggplot2)
-library(lmtest)
-library(sandwich)
 library(rugarch)
 library(FinTS)
-library(tseries)
-library(moments)
-library(zoo)
 
-# -------------------------------------------------------------------------
-# Setup
-# -------------------------------------------------------------------------
+
+# 2. Setup
 
 script_dir <- getwd()
 
-output_dir <- file.path(script_dir, "Results")
-core_table_dir <- file.path(output_dir, "Tables", "Core")
-appendix_table_dir <- file.path(output_dir, "Tables", "Appendix")
-figure_dir <- file.path(output_dir, "Figures")
+output_dir <- file.path(
+  script_dir,
+  "Results"
+)
 
-dir.create(output_dir, showWarnings = FALSE)
-dir.create(core_table_dir, recursive = TRUE, showWarnings = FALSE)
-dir.create(appendix_table_dir, recursive = TRUE, showWarnings = FALSE)
-dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+core_table_dir <- file.path(
+  output_dir,
+  "Tables",
+  "Core"
+)
 
-# These are the current filenames. If the files are renamed in GitHub,
-# change only this block.
+appendix_table_dir <- file.path(
+  output_dir,
+  "Tables",
+  "Appendix"
+)
+
+figure_dir <- file.path(
+  output_dir,
+  "Figures"
+)
+
+dir.create(
+  output_dir,
+  showWarnings = FALSE
+)
+
+dir.create(
+  core_table_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  appendix_table_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  figure_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+
+# 3. Check Required Files
+
 script_files <- c(
   "0_Run_First.R",
   "1_Preliminary_Data_Analysis.R",
-  "2_1_Bitcoin_Volatitity.R",
+  "2_1_Bitcoin_Volatility.R",
   "2_2_Index_Volatility.R",
   "3_GPR_BTC_Analysis.R",
   "4_BTC_J303_Analysis.R",
@@ -44,148 +71,214 @@ script_files <- c(
   "8_BTC_J303_Event_Study.R"
 )
 
-missing <- script_files[!file.exists(file.path(script_dir, script_files))]
-
-if (length(missing) > 0) {
+if (!all(
+  file.exists(
+    file.path(
+      script_dir,
+      script_files
+    )
+  )
+)) {
+  
   stop(
-    "The following scripts were not found in the working directory:\n",
-    paste(missing, collapse = "\n")
+    "One or more analysis scripts were not found."
   )
 }
 
-# Script 0 is the common data/model setup.
-# Script 0 expects the workbook to be named Thesis_Data.xlsx.
-# If the local workbook still has a timestamped filename, create a
-# temporary alias and remove it again when Script 9 finishes.
-standard_data_path <- file.path(
-  script_dir,
-  "Thesis_Data.xlsx"
+if (!file.exists(
+  file.path(
+    script_dir,
+    "Thesis_Data.xlsx"
+  )
+)) {
+  
+  stop(
+    "Thesis_Data.xlsx not found."
+  )
+}
+
+
+# 4. Run Analysis Scripts
+
+master <- new.env(
+  parent = globalenv()
 )
 
-created_data_alias <- FALSE
-
-if (!file.exists(standard_data_path)) {
-
-  data_candidates <- list.files(
-    script_dir,
-    pattern = "^Thesis_Data.*\\.xlsx$",
-    full.names = TRUE
-  )
-
-  if (length(data_candidates) == 1) {
-    file.copy(
-      data_candidates[1],
-      standard_data_path,
-      overwrite = FALSE
-    )
-    created_data_alias <- TRUE
-  }
-}
-
-if (!file.exists(standard_data_path)) {
-  stop(
-    "Could not find Thesis_Data.xlsx or a single timestamped Thesis_Data workbook."
-  )
-}
-
-master <- new.env(parent = globalenv())
-
 sys.source(
-  file.path(script_dir, script_files[1]),
+  file.path(
+    script_dir,
+    script_files[1]
+  ),
   envir = master
 )
 
-if (created_data_alias) {
-  unlink(standard_data_path)
-}
 
-# Run each later script in its own environment.
-# This prevents objects such as regression.summary from being overwritten.
 run_in_isolated_env <- function(path) {
-
-  e <- new.env(parent = master)
-
-  # Suppress the plots produced by the source scripts.
-  # Script 9 creates the final printer-friendly figures below.
-  tmp_pdf <- tempfile(fileext = ".pdf")
-
+  
+  e <- new.env(
+    parent = master
+  )
+  
+  tmp_pdf <- tempfile(
+    fileext = ".pdf"
+  )
+  
   grDevices::pdf(tmp_pdf)
-
+  
   on.exit({
-    try(grDevices::dev.off(), silent = TRUE)
+    
+    try(
+      grDevices::dev.off(),
+      silent = TRUE
+    )
+    
     unlink(tmp_pdf)
-  }, add = TRUE)
-
-  sys.source(path, envir = e)
-
+    
+  })
+  
+  sys.source(
+    path,
+    envir = e
+  )
+  
   e
 }
 
-e1  <- run_in_isolated_env(file.path(script_dir, script_files[2]))
-e21 <- run_in_isolated_env(file.path(script_dir, script_files[3]))
-e22 <- run_in_isolated_env(file.path(script_dir, script_files[4]))
-e3  <- run_in_isolated_env(file.path(script_dir, script_files[5]))
-e4  <- run_in_isolated_env(file.path(script_dir, script_files[6]))
-e5  <- run_in_isolated_env(file.path(script_dir, script_files[7]))
-e6  <- run_in_isolated_env(file.path(script_dir, script_files[8]))
-e7  <- run_in_isolated_env(file.path(script_dir, script_files[9]))
-e8  <- run_in_isolated_env(file.path(script_dir, script_files[10]))
 
-# -------------------------------------------------------------------------
-# Formatting helpers
-# -------------------------------------------------------------------------
+e1 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[2]
+  )
+)
 
-# Preserve the existing 4-decimal presentation for ordinary values,
-# but do not round genuinely small coefficients/p-values to zero.
-# Small non-zero values are retained using significant digits.
-round_numeric <- function(x, digits = 4) {
+e21 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[3]
+  )
+)
 
+e22 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[4]
+  )
+)
+
+e3 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[5]
+  )
+)
+
+e4 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[6]
+  )
+)
+
+e5 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[7]
+  )
+)
+
+e6 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[8]
+  )
+)
+
+e7 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[9]
+  )
+)
+
+e8 <- run_in_isolated_env(
+  file.path(
+    script_dir,
+    script_files[10]
+  )
+)
+
+
+# 5. Functions
+
+round_numeric <- function(
+    x,
+    digits = 4
+) {
+  
   if (!is.numeric(x)) {
     return(x)
   }
-
-  out <- round(x, digits)
-
+  
+  out <- round(
+    x,
+    digits
+  )
+  
   small_nonzero <- (
     !is.na(x) &
-    x != 0 &
-    abs(x) < 10^(-digits)
+      x != 0 &
+      abs(x) < 10^(-digits)
   )
-
+  
   out[small_nonzero] <- signif(
     x[small_nonzero],
     digits
   )
-
+  
   out
 }
 
-write_table <- function(x, name, digits = 4, appendix = FALSE) {
 
+write_table <- function(
+    x,
+    name,
+    digits = 4,
+    appendix = FALSE
+) {
+  
   x <- as.data.frame(x)
-
+  
   x[] <- lapply(
     x,
     round_numeric,
     digits = digits
   )
-
-  destination <- if (appendix) appendix_table_dir else core_table_dir
-
+  
+  destination <- if (appendix) {
+    appendix_table_dir
+  } else {
+    core_table_dir
+  }
+  
   write.csv(
     x,
     file = file.path(
       destination,
-      paste0(name, ".csv")
+      paste0(
+        name,
+        ".csv"
+      )
     ),
     row.names = FALSE,
     na = ""
   )
-
+  
   print(x)
-
+  
   invisible(x)
 }
+
 
 save_plot <- function(
     p,
@@ -193,11 +286,14 @@ save_plot <- function(
     width = 7,
     height = 4.5
 ) {
-
+  
   ggsave(
     filename = file.path(
       figure_dir,
-      paste0(name, ".png")
+      paste0(
+        name,
+        ".png"
+      )
     ),
     plot = p,
     width = width,
@@ -208,36 +304,46 @@ save_plot <- function(
   )
 }
 
-theme_thesis <- theme_bw(base_size = 11) +
+
+theme_thesis <- theme_bw(
+  base_size = 11
+) +
   theme(
+    
     plot.title = element_text(
       face = "bold",
       size = 12
     ),
+    
     plot.subtitle = element_text(
       size = 10
     ),
+    
     axis.title = element_text(
       size = 10
     ),
+    
     axis.text = element_text(
       colour = "black"
     ),
+    
     legend.position = "bottom",
+    
     panel.grid.minor = element_blank(),
+    
     panel.grid.major = element_line(
       colour = "grey85",
       linewidth = 0.25
     )
   )
 
-# -------------------------------------------------------------------------
-# Data audit
-# -------------------------------------------------------------------------
+
+# 6. Data Audit
 
 data0 <- master$data0
 
 data_audit <- data.frame(
+  
   Item = c(
     "Observations",
     "Complete observations",
@@ -247,14 +353,23 @@ data_audit <- data.frame(
     "Unique dates",
     "Duplicated dates"
   ),
+  
   Value = c(
     nrow(data0),
     sum(complete.cases(data0)),
     sum(!complete.cases(data0)),
-    as.character(min(data0$Date)),
-    as.character(max(data0$Date)),
-    length(unique(data0$Date)),
-    anyDuplicated(data0$Date)
+    as.character(
+      min(data0$Date)
+    ),
+    as.character(
+      max(data0$Date)
+    ),
+    length(
+      unique(data0$Date)
+    ),
+    anyDuplicated(
+      data0$Date
+    )
   )
 )
 
@@ -263,15 +378,19 @@ write_table(
   "T01_Data_Audit"
 )
 
-# -------------------------------------------------------------------------
-# Descriptive statistics
-# -------------------------------------------------------------------------
+
+# 7. Descriptive Statistics
 
 statistics <- e1$statistics
 
 statistics <- data.frame(
-  Variable = rownames(statistics),
+  
+  Variable = rownames(
+    statistics
+  ),
+  
   statistics,
+  
   row.names = NULL
 )
 
@@ -280,9 +399,8 @@ write_table(
   "T02_Descriptive_Statistics"
 )
 
-# -------------------------------------------------------------------------
-# GARCH model selection
-# -------------------------------------------------------------------------
+
+# 8. GARCH Model Selection
 
 write_table(
   e21$comparison,
@@ -304,70 +422,91 @@ write_table(
   "T06_J303_EGARCH_Mean_Comparison"
 )
 
-# Compact diagnostics for the selected EGARCH specifications.
+
+# 9. Final GARCH Diagnostics
+
 garch_diagnostic_row <- function(
     fit,
     asset,
     model_name
 ) {
-
+  
   z <- residuals(
     fit,
     standardize = TRUE
   )
-
+  
   lb1 <- Box.test(
     z,
     lag = 20,
     type = "Ljung-Box"
   )
-
+  
   lb2 <- Box.test(
     z^2,
     lag = 20,
     type = "Ljung-Box"
   )
-
+  
   arch <- ArchTest(
     z,
     lags = 12
   )
-
+  
   persistence_value <- tryCatch(
+    
     as.numeric(
       persistence(fit)[1]
     ),
-    error = function(e) NA_real_
+    
+    error = function(e) {
+      NA_real_
+    }
   )
-
+  
   ny_joint <- tryCatch(
+    
     as.numeric(
       nyblom(fit)$JointStat
     ),
-    error = function(e) NA_real_
+    
+    error = function(e) {
+      NA_real_
+    }
   )
-
+  
   data.frame(
+    
     Asset = asset,
+    
     Model = model_name,
+    
     Convergence = tryCatch(
       fit@fit$convergence,
       error = function(e) NA
     ),
+    
     Persistence = persistence_value,
+    
     Ljung_Box_Residual_p = lb1$p.value,
+    
     Ljung_Box_Squared_p = lb2$p.value,
+    
     ARCH_LM_p = arch$p.value,
+    
     Nyblom_Joint = ny_joint
   )
 }
 
+
 garch_diagnostics <- rbind(
+  
   garch_diagnostic_row(
     e21$fit.egarch,
     "Bitcoin",
     "ARMA(0,0)-EGARCH(1,1)-t"
   ),
+  
   garch_diagnostic_row(
     e22$fit.egarch,
     "J303",
@@ -375,44 +514,59 @@ garch_diagnostics <- rbind(
   )
 )
 
-# Prevent diagnostic object names from leaking into printed row names.
-rownames(garch_diagnostics) <- NULL
+rownames(
+  garch_diagnostics
+) <- NULL
 
 write_table(
   garch_diagnostics,
   "T07_Final_GARCH_Diagnostics"
 )
 
-# -------------------------------------------------------------------------
-# Weekday diagnostic
-# -------------------------------------------------------------------------
+
+# 10. Weekday Diagnostics
 
 weekday_btc <- aggregate(
+  
   BTC ~ Day,
+  
   data = e1$weekday_summary,
-  FUN = function(x) sd(
-    x,
-    na.rm = TRUE
-  )
+  
+  FUN = function(x) {
+    sd(
+      x,
+      na.rm = TRUE
+    )
+  }
 )
 
 weekday_j303 <- aggregate(
+  
   J303 ~ Day,
+  
   data = e1$weekday_summary,
-  FUN = function(x) sd(
-    x,
-    na.rm = TRUE
-  )
+  
+  FUN = function(x) {
+    sd(
+      x,
+      na.rm = TRUE
+    )
+  }
 )
 
 weekday_return_sd <- merge(
+  
   weekday_btc,
   weekday_j303,
+  
   by = "Day",
+  
   all = TRUE
 )
 
-names(weekday_return_sd) <- c(
+names(
+  weekday_return_sd
+) <- c(
   "Day",
   "Bitcoin_SD",
   "J303_SD"
@@ -424,9 +578,8 @@ write_table(
   appendix = TRUE
 )
 
-# -------------------------------------------------------------------------
-# GPR -> Bitcoin volatility
-# -------------------------------------------------------------------------
+
+# 11. GPR -> Bitcoin Volatility
 
 write_table(
   e3$correlation.summary,
@@ -448,9 +601,8 @@ write_table(
   "T12_GPR_Bitcoin_Post2017"
 )
 
-# -------------------------------------------------------------------------
-# Bitcoin -> J303 volatility spillover
-# -------------------------------------------------------------------------
+
+# 12. Bitcoin -> J303 Volatility
 
 write_table(
   e4$correlation.summary,
@@ -489,16 +641,17 @@ write_table(
   appendix = TRUE
 )
 
-# -------------------------------------------------------------------------
-# GPR regimes: effect on Bitcoin volatility
-# -------------------------------------------------------------------------
+
+# 13. GPR Regimes: Bitcoin Volatility
 
 gpr_thresholds <- data.frame(
+  
   Measure = c(
     "GPRD",
     "GPRD_ACT",
     "GPRD_THREAT"
   ),
+  
   Threshold = c(
     master$GPRD_threshold,
     master$GPRD_ACT_threshold,
@@ -523,62 +676,75 @@ write_table(
 
 write_table(
   e5$act.dynamic.comparison,
-  "T23_GPR_Acts_Regime_Dynamic_Models",
+  "T23_GPR_ACT_Regime_Dynamic_Models",
   appendix = TRUE
 )
 
 write_table(
   e5$threat.dynamic.comparison,
-  "T24_GPR_Threats_Regime_Dynamic_Models",
+  "T24_GPR_THREAT_Regime_Dynamic_Models",
   appendix = TRUE
 )
 
-# Script 5 overwrites interaction.summary at the end with the
-# ACT/THREAT summary, so construct the main GPRD interaction table
-# directly from interaction.nw.
+
+# 14. GPR Regime Interaction
+
 gprd_interaction <- data.frame(
+  
   Variable = c(
     "GPR",
     "Elevated GPR",
     "GPR x Elevated GPR"
   ),
+  
   Estimate = c(
+    
     e5$interaction.nw[
       "GPRD",
       "Estimate"
     ],
+    
     e5$interaction.nw[
       "GPR_RegimeElevated GPR",
       "Estimate"
     ],
+    
     e5$interaction.nw[
       "GPRD:GPR_RegimeElevated GPR",
       "Estimate"
     ]
   ),
+  
   Robust_SE = c(
+    
     e5$interaction.nw[
       "GPRD",
       "Std. Error"
     ],
+    
     e5$interaction.nw[
       "GPR_RegimeElevated GPR",
       "Std. Error"
     ],
+    
     e5$interaction.nw[
       "GPRD:GPR_RegimeElevated GPR",
       "Std. Error"
     ]
   ),
+  
   P_Value = c(
+    
     e5$interaction.nw[
       "GPRD",
       "Pr(>|t|)"
     ],
+    
     e5$interaction.nw[
       "GPR_RegimeElevated GPR",
       "Pr(>|t|)"
     ],
+    
     e5$interaction.nw[
       "GPRD:GPR_RegimeElevated GPR",
       "Pr(>|t|)"
@@ -597,9 +763,8 @@ write_table(
   appendix = TRUE
 )
 
-# -------------------------------------------------------------------------
-# GPR regimes: Bitcoin -> J303 transmission
-# -------------------------------------------------------------------------
+
+# 15. GPR Regimes: Bitcoin -> J303
 
 write_table(
   e7$regime.summary,
@@ -623,19 +788,18 @@ write_table(
 
 write_table(
   e7$act.dynamic.comparison,
-  "T30_Bitcoin_J303_GPR_Acts_Regime_Spillover",
+  "T30_Bitcoin_J303_GPR_ACT_Regime_Spillover",
   appendix = TRUE
 )
 
 write_table(
   e7$threat.dynamic.comparison,
-  "T31_Bitcoin_J303_GPR_Threats_Regime_Spillover",
+  "T31_Bitcoin_J303_GPR_THREAT_Regime_Spillover",
   appendix = TRUE
 )
 
-# -------------------------------------------------------------------------
-# GPR -> Bitcoin event study
-# -------------------------------------------------------------------------
+
+# 16. GPR -> Bitcoin Event Analysis
 
 write_table(
   e6$event.results_21$events,
@@ -648,18 +812,19 @@ write_table(
   appendix = TRUE
 )
 
-# Script 6 does not carry Measure into the regression object.
-# Add it from the corresponding event table so the regression output
-# remains interpretable and can also be used for stability analysis.
+
 event21_regression <- e6$event.results_21$regression
 
-event21_regression_measure <- e6$event.results_21$events %>%
-  dplyr::select(Event, Measure) %>%
-  dplyr::distinct()
+event21_measure <- e6$event.results_21$events %>%
+  select(
+    Event,
+    Measure
+  ) %>%
+  distinct()
 
 event21_regression <- event21_regression %>%
-  dplyr::left_join(
-    event21_regression_measure,
+  left_join(
+    event21_measure,
     by = "Event"
   )
 
@@ -680,53 +845,71 @@ write_table(
   appendix = TRUE
 )
 
-# Script 6's regression object does not contain Measure, so its
-# regression.stability object is empty. Reconstruct the stability table
-# here by joining Measure from each corresponding event table.
-make_gpr_btc_regression_stability <- function(event_result, smoothing) {
 
+# 17. GPR -> Bitcoin Event Regression Stability
+
+make_gpr_btc_regression_stability <- function(
+    event_result,
+    smoothing
+) {
+  
   reg <- event_result$regression
-
+  
   event_measure <- event_result$events %>%
-    dplyr::select(Event, Measure) %>%
-    dplyr::distinct()
-
+    select(
+      Event,
+      Measure
+    ) %>%
+    distinct()
+  
   reg <- reg %>%
-    dplyr::left_join(
+    left_join(
       event_measure,
       by = "Event"
     )
-
+  
   data.frame(
+    
     Event = reg$Event,
+    
     Base_Event = sub(
       " [GAT][0-9]+(-[0-9]+)?$",
       "",
       reg$Event
     ),
+    
     Measure = reg$Measure,
+    
     Smoothing = smoothing,
+    
     Significant_NW = reg$Significant
   )
 }
 
-regression.stability.data <- dplyr::bind_rows(
+
+regression.stability.data <- bind_rows(
+  
   make_gpr_btc_regression_stability(
     e6$event.results_11,
     11
   ),
+  
   make_gpr_btc_regression_stability(
     e6$event.results_21,
     21
   ),
+  
   make_gpr_btc_regression_stability(
     e6$event.results_31,
     31
   )
 )
 
-regression.stability <- dplyr::bind_rows(
+
+regression.stability <- bind_rows(
+  
   lapply(
+    
     split(
       regression.stability.data,
       list(
@@ -735,42 +918,49 @@ regression.stability <- dplyr::bind_rows(
       ),
       drop = TRUE
     ),
+    
     function(x) {
-
+      
       data.frame(
+        
         Event = x$Base_Event[1],
+        
         Measure = x$Measure[1],
+        
         NW_Significant_11 = ifelse(
           any(
             x$Smoothing == 11 &
-            x$Significant_NW == "Yes"
+              x$Significant_NW == "Yes"
           ),
           "Yes",
           "No"
         ),
+        
         NW_Significant_21 = ifelse(
           any(
             x$Smoothing == 21 &
-            x$Significant_NW == "Yes"
+              x$Significant_NW == "Yes"
           ),
           "Yes",
           "No"
         ),
+        
         NW_Significant_31 = ifelse(
           any(
             x$Smoothing == 31 &
-            x$Significant_NW == "Yes"
+              x$Significant_NW == "Yes"
           ),
           "Yes",
           "No"
         )
       )
-
     }
   )
 )
 
-rownames(regression.stability) <- NULL
+rownames(
+  regression.stability
+) <- NULL
 
 write_table(
   regression.stability,
@@ -778,9 +968,8 @@ write_table(
   appendix = TRUE
 )
 
-# -------------------------------------------------------------------------
-# Bitcoin -> J303 event study
-# -------------------------------------------------------------------------
+
+# 18. Bitcoin -> J303 Event Analysis
 
 write_table(
   e8$event.results_21$events,
@@ -810,22 +999,33 @@ write_table(
   appendix = TRUE
 )
 
-# -------------------------------------------------------------------------
-# Printer-friendly figures
-# -------------------------------------------------------------------------
+
+# 19. Prepare Figure Data
 
 plot_data <- data.frame(
+  
   Date = data0$Date,
+  
   Bitcoin = data0$BTC_log_returns,
+  
   J303 = data0$Index_log_returns,
+  
   GPRD = data0$GPRD,
+  
   BTC_Volatility = data0$BTC_Volatility,
+  
   J303_Volatility = data0$J303_Volatility
 )
 
+
+# 20. Create Figures
+
 p_btc_return <- ggplot(
   plot_data,
-  aes(Date, Bitcoin)
+  aes(
+    Date,
+    Bitcoin
+  )
 ) +
   geom_line(
     linewidth = 0.35,
@@ -838,9 +1038,13 @@ p_btc_return <- ggplot(
   ) +
   theme_thesis
 
+
 p_j303_return <- ggplot(
   plot_data,
-  aes(Date, J303)
+  aes(
+    Date,
+    J303
+  )
 ) +
   geom_line(
     linewidth = 0.35,
@@ -853,9 +1057,13 @@ p_j303_return <- ggplot(
   ) +
   theme_thesis
 
+
 p_gpr <- ggplot(
   plot_data,
-  aes(Date, GPRD)
+  aes(
+    Date,
+    GPRD
+  )
 ) +
   geom_line(
     linewidth = 0.4,
@@ -868,9 +1076,13 @@ p_gpr <- ggplot(
   ) +
   theme_thesis
 
+
 p_btc_vol <- ggplot(
   plot_data,
-  aes(Date, BTC_Volatility)
+  aes(
+    Date,
+    BTC_Volatility
+  )
 ) +
   geom_line(
     linewidth = 0.4,
@@ -883,9 +1095,13 @@ p_btc_vol <- ggplot(
   ) +
   theme_thesis
 
+
 p_j303_vol <- ggplot(
   plot_data,
-  aes(Date, J303_Volatility)
+  aes(
+    Date,
+    J303_Volatility
+  )
 ) +
   geom_line(
     linewidth = 0.4,
@@ -897,6 +1113,7 @@ p_j303_vol <- ggplot(
     y = "Conditional volatility"
   ) +
   theme_thesis
+
 
 p_gpr_btc <- ggplot(
   data0,
@@ -919,8 +1136,7 @@ p_gpr_btc <- ggplot(
   geom_smooth(
     method = "loess",
     se = TRUE,
-    colour = "grey40",
-    linetype = "solid"
+    colour = "grey40"
   ) +
   labs(
     title = "Bitcoin Conditional Volatility and Geopolitical Risk",
@@ -928,6 +1144,7 @@ p_gpr_btc <- ggplot(
     y = "Bitcoin conditional volatility"
   ) +
   theme_thesis
+
 
 p_btc_j303 <- ggplot(
   data0,
@@ -950,8 +1167,7 @@ p_btc_j303 <- ggplot(
   geom_smooth(
     method = "loess",
     se = TRUE,
-    colour = "grey40",
-    linetype = "solid"
+    colour = "grey40"
   ) +
   labs(
     title = "Bitcoin and J303 Conditional Volatility",
@@ -959,6 +1175,7 @@ p_btc_j303 <- ggplot(
     y = "J303 conditional volatility"
   ) +
   theme_thesis
+
 
 p_regime <- ggplot(
   data0,
@@ -981,7 +1198,10 @@ p_regime <- ggplot(
     colour = "black"
   ) +
   scale_shape_manual(
-    values = c(16, 1)
+    values = c(
+      16,
+      1
+    )
   ) +
   scale_linetype_manual(
     values = c(
@@ -998,21 +1218,29 @@ p_regime <- ggplot(
   ) +
   theme_thesis
 
-# Event coefficient plots use grey fills only.
+
 event21 <- e6$event.results_21$regression
 
-# Add the GPR measure from the corresponding event table.
 event21_measure <- e6$event.results_21$events %>%
-  dplyr::select(Event, Measure) %>%
-  dplyr::distinct()
+  select(
+    Event,
+    Measure
+  ) %>%
+  distinct()
 
 event21 <- event21 %>%
-  dplyr::left_join(event21_measure, by = "Event")
+  left_join(
+    event21_measure,
+    by = "Event"
+  )
 
 event21$Event <- factor(
   event21$Event,
-  levels = unique(event21$Event)
+  levels = unique(
+    event21$Event
+  )
 )
+
 
 p_event_gpr_btc <- ggplot(
   event21,
@@ -1048,12 +1276,14 @@ p_event_gpr_btc <- ggplot(
     )
   )
 
+
 event21_spill <- e8$event.results_21$regression
 
 event21_spill$Event <- factor(
   event21_spill$Event,
   levels = event21_spill$Event
 )
+
 
 p_event_spill <- ggplot(
   event21_spill,
@@ -1081,18 +1311,13 @@ p_event_spill <- ggplot(
     y = "Bitcoin volatility coefficient",
     fill = "GPR measure"
   ) +
-  theme_thesis +
-  theme(
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1
-    )
-  )
+  theme_thesis
 
-# Standardised residual plots are useful as diagnostics but need not all
-# appear in the main thesis.
+
 btc_std_resid <- data.frame(
+  
   Date = data0$Date,
+  
   Standardized_Residual = as.numeric(
     residuals(
       master$btc.fit,
@@ -1101,8 +1326,11 @@ btc_std_resid <- data.frame(
   )
 )
 
+
 j303_std_resid <- data.frame(
+  
   Date = data0$Date,
+  
   Standardized_Residual = as.numeric(
     residuals(
       master$j303.fit,
@@ -1111,9 +1339,13 @@ j303_std_resid <- data.frame(
   )
 )
 
+
 p_btc_resid <- ggplot(
   btc_std_resid,
-  aes(Date, Standardized_Residual)
+  aes(
+    Date,
+    Standardized_Residual
+  )
 ) +
   geom_line(
     linewidth = 0.35,
@@ -1131,9 +1363,13 @@ p_btc_resid <- ggplot(
   ) +
   theme_thesis
 
+
 p_j303_resid <- ggplot(
   j303_std_resid,
-  aes(Date, Standardized_Residual)
+  aes(
+    Date,
+    Standardized_Residual
+  )
 ) +
   geom_line(
     linewidth = 0.35,
@@ -1150,6 +1386,9 @@ p_j303_resid <- ggplot(
     y = "Standardized residual"
   ) +
   theme_thesis
+
+
+# 21. Save Figures
 
 save_plot(
   p_btc_return,
@@ -1215,55 +1454,8 @@ save_plot(
   "F12_J303_Standardized_Residuals"
 )
 
-# -------------------------------------------------------------------------
-# Output index
-# -------------------------------------------------------------------------
 
-writeLines(
-  c(
-    "THESIS RESULTS OUTPUT",
-    "=====================",
-    "",
-    paste(
-      "Tables:",
-      length(c(
-        list.files(core_table_dir, pattern = "\\.csv$", full.names = TRUE),
-        list.files(appendix_table_dir, pattern = "\\.csv$", full.names = TRUE)
-      ))
-    ),
-    paste(
-      "Figures:",
-      length(
-        list.files(
-          figure_dir,
-          pattern = "\\.png$"
-        )
-      )
-    ),
-    "",
-    "All figures are exported at 300 dpi using black/grey/white styling.",
-    "",
-    "Core figures:",
-    "F01 Bitcoin returns",
-    "F02 J303 returns",
-    "F03 GPRD",
-    "F04 Bitcoin conditional volatility",
-    "F05 J303 conditional volatility",
-    "F06 GPR -> Bitcoin volatility",
-    "F07 Bitcoin -> J303 volatility",
-    "F08 GPR regimes",
-    "F09 GPR-Bitcoin event coefficients",
-    "F10 Bitcoin-J303 event coefficients",
-    "",
-    "Diagnostic figures:",
-    "F11 Bitcoin standardized residuals",
-    "F12 J303 standardized residuals"
-  ),
-  con = file.path(
-    output_dir,
-    "Results_Index.txt"
-  )
-)
+# 22. Results Summary
 
 cat(
   "\nResults written to:\n",
@@ -1273,13 +1465,23 @@ cat(
 
 cat(
   "Core tables:",
-  length(list.files(core_table_dir, pattern = "\\.csv$")),
+  length(
+    list.files(
+      core_table_dir,
+      pattern = "\\.csv$"
+    )
+  ),
   "\n"
 )
 
 cat(
   "Appendix tables:",
-  length(list.files(appendix_table_dir, pattern = "\\.csv$")),
+  length(
+    list.files(
+      appendix_table_dir,
+      pattern = "\\.csv$"
+    )
+  ),
   "\n"
 )
 

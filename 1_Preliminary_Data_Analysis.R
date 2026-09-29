@@ -1,266 +1,474 @@
 # 1. Load Packages
-library(ggplot2)
-library(moments)
-library(tseries)
+
+library(rugarch)
 library(FinTS)
 
-# 2. Data Preparation
+
+# 2. Import Data
+
 data <- na.omit(data0)
 
 btc <- data$BTC_log_returns
-J303 <- data$Index_log_returns
-GPRD <- data$GPRD
-GPRD_ACT <- data$GPRD_ACT
-GPRD_THREAT <- data$GPRD_THREAT
 
 
-# 3. Descriptive Statistics
-descriptive_statistics <- function(x){
+# 3. Visual Diagnostics
+
+acf(btc,
+    main = "ACF of Bitcoin Returns")
+
+pacf(btc,
+     main = "PACF of Bitcoin Returns")
+
+acf(btc^2,
+    main = "ACF of Squared Bitcoin Returns")
+
+pacf(btc^2,
+     main = "PACF of Squared Bitcoin Returns")
+
+
+# 4. Specify Candidate Volatility Models
+
+# Standard GARCH(1,1)
+
+spec.garch <- ugarchspec(
   
-  data.frame(
-    
-    N = sum(!is.na(x)),
-    Mean = mean(x, na.rm = TRUE),
-    Median = median(x, na.rm = TRUE),
-    SD = sd(x, na.rm = TRUE),
-    Minimum = min(x, na.rm = TRUE),
-    Maximum = max(x, na.rm = TRUE),
-    Skewness = skewness(x, na.rm = TRUE),
-    Excess_Kurtosis = kurtosis(x, na.rm = TRUE) - 3
-    
+  variance.model = list(
+    model = "sGARCH",
+    garchOrder = c(1,1)
+  ),
+  
+  mean.model = list(
+    armaOrder = c(0,0),
+    include.mean = TRUE
+  ),
+  
+  distribution.model = "std"
+  
+)
+
+
+# EGARCH(1,1)
+
+spec.egarch <- ugarchspec(
+  
+  variance.model = list(
+    model = "eGARCH",
+    garchOrder = c(1,1)
+  ),
+  
+  mean.model = list(
+    armaOrder = c(0,0),
+    include.mean = TRUE
+  ),
+  
+  distribution.model = "std"
+  
+)
+
+
+# GJR-GARCH(1,1)
+
+spec.gjr <- ugarchspec(
+  
+  variance.model = list(
+    model = "gjrGARCH",
+    garchOrder = c(1,1)
+  ),
+  
+  mean.model = list(
+    armaOrder = c(0,0),
+    include.mean = TRUE
+  ),
+  
+  distribution.model = "std"
+  
+)
+
+
+# 5. Estimate Candidate Volatility Models
+
+fit.garch <- ugarchfit(
+  spec = spec.garch,
+  data = btc
+)
+
+fit.egarch <- ugarchfit(
+  spec = spec.egarch,
+  data = btc
+)
+
+fit.gjr <- ugarchfit(
+  spec = spec.gjr,
+  data = btc
+)
+
+
+# 6. Compare Candidate Volatility Models
+
+comparison <- data.frame(
+  
+  Model = c(
+    "GARCH(1,1)",
+    "EGARCH(1,1)",
+    "GJR-GARCH(1,1)"
+  ),
+  
+  LogLikelihood = c(
+    likelihood(fit.garch),
+    likelihood(fit.egarch),
+    likelihood(fit.gjr)
+  ),
+  
+  AIC = c(
+    infocriteria(fit.garch)[1],
+    infocriteria(fit.egarch)[1],
+    infocriteria(fit.gjr)[1]
+  ),
+  
+  BIC = c(
+    infocriteria(fit.garch)[2],
+    infocriteria(fit.egarch)[2],
+    infocriteria(fit.gjr)[2]
+  ),
+  
+  Shibata = c(
+    infocriteria(fit.garch)[3],
+    infocriteria(fit.egarch)[3],
+    infocriteria(fit.gjr)[3]
+  ),
+  
+  HannanQuinn = c(
+    infocriteria(fit.garch)[4],
+    infocriteria(fit.egarch)[4],
+    infocriteria(fit.gjr)[4]
   )
   
-}
+)
 
-BTC_Stats <- descriptive_statistics(btc)
+comparison
 
-J303_Stats <- descriptive_statistics(J303)
 
-GPRD_Stats <- descriptive_statistics(GPRD)
+# 7. Test Alternative EGARCH Mean Specifications
 
-GPRD_ACT_Stats <- descriptive_statistics(GPRD_ACT)
+# EGARCH with ARMA(1,0)
 
-GPRD_THREAT_Stats <- descriptive_statistics(GPRD_THREAT)
-
-statistics <- rbind(
+spec.egarch.ar10 <- ugarchspec(
   
-  Bitcoin = BTC_Stats,
+  variance.model = list(
+    model = "eGARCH",
+    garchOrder = c(1,1)
+  ),
   
-  J303 = J303_Stats,
+  mean.model = list(
+    armaOrder = c(1,0),
+    include.mean = TRUE
+  ),
   
-  GPRD = GPRD_Stats,
-  
-  GPRD_ACT = GPRD_ACT_Stats,
-  
-  GPRD_THREAT = GPRD_THREAT_Stats
+  distribution.model = "std"
   
 )
 
-print(round(statistics, 4))
 
+# EGARCH with ARMA(0,1)
 
-# 4. Time Series Plots
-
-ggplot(data,
-       aes(Date, BTC_log_returns)) +
+spec.egarch.ma01 <- ugarchspec(
   
-  geom_line() +
+  variance.model = list(
+    model = "eGARCH",
+    garchOrder = c(1,1)
+  ),
   
-  theme_minimal() +
+  mean.model = list(
+    armaOrder = c(0,1),
+    include.mean = TRUE
+  ),
   
-  labs(title = "Bitcoin Daily Log Returns",
-       x = "Date",
-       y = "Log Returns")
-
-
-ggplot(data,
-       aes(Date, Index_log_returns)) +
+  distribution.model = "std"
   
-  geom_line() +
+)
+
+
+# EGARCH with ARMA(1,1)
+
+spec.egarch.ar11 <- ugarchspec(
   
-  theme_minimal() +
+  variance.model = list(
+    model = "eGARCH",
+    garchOrder = c(1,1)
+  ),
   
-  labs(title = "J303 Daily Log Returns",
-       x = "Date",
-       y = "Log Returns")
-
-
-ggplot(data,
-       aes(Date, GPRD)) +
+  mean.model = list(
+    armaOrder = c(1,1),
+    include.mean = TRUE
+  ),
   
-  geom_line() +
+  distribution.model = "std"
   
-  theme_minimal() +
+)
+
+
+# Estimate alternative mean specifications
+
+fit.egarch.ar10 <- ugarchfit(
+  spec = spec.egarch.ar10,
+  data = btc
+)
+
+fit.egarch.ma01 <- ugarchfit(
+  spec = spec.egarch.ma01,
+  data = btc
+)
+
+fit.egarch.ar11 <- ugarchfit(
+  spec = spec.egarch.ar11,
+  data = btc
+)
+
+
+# 8. Compare EGARCH Mean Specifications
+
+mean_comparison <- data.frame(
   
-  labs(title = "Geopolitical Risk Index",
-       x = "Date",
-       y = "GPRD")
-
-
-ggplot(data,
-       aes(Date, GPRD_ACT)) +
+  Model = c(
+    "EGARCH ARMA(0,0)",
+    "EGARCH ARMA(1,0)",
+    "EGARCH ARMA(0,1)",
+    "EGARCH ARMA(1,1)"
+  ),
   
-  geom_line() +
+  LogLikelihood = c(
+    likelihood(fit.egarch),
+    likelihood(fit.egarch.ar10),
+    likelihood(fit.egarch.ma01),
+    likelihood(fit.egarch.ar11)
+  ),
   
-  theme_minimal() +
+  AIC = c(
+    infocriteria(fit.egarch)[1],
+    infocriteria(fit.egarch.ar10)[1],
+    infocriteria(fit.egarch.ma01)[1],
+    infocriteria(fit.egarch.ar11)[1]
+  ),
   
-  labs(title = "Geopolitical Risk: Acts",
-       x = "Date",
-       y = "GPRD_ACT")
-
-
-ggplot(data,
-       aes(Date, GPRD_THREAT)) +
+  BIC = c(
+    infocriteria(fit.egarch)[2],
+    infocriteria(fit.egarch.ar10)[2],
+    infocriteria(fit.egarch.ma01)[2],
+    infocriteria(fit.egarch.ar11)[2]
+  ),
   
-  geom_line() +
+  Shibata = c(
+    infocriteria(fit.egarch)[3],
+    infocriteria(fit.egarch.ar10)[3],
+    infocriteria(fit.egarch.ma01)[3],
+    infocriteria(fit.egarch.ar11)[3]
+  ),
   
-  theme_minimal() +
+  HannanQuinn = c(
+    infocriteria(fit.egarch)[4],
+    infocriteria(fit.egarch.ar10)[4],
+    infocriteria(fit.egarch.ma01)[4],
+    infocriteria(fit.egarch.ar11)[4]
+  )
   
-  labs(title = "Geopolitical Risk: Threats",
-       x = "Date",
-       y = "GPRD_THREAT")
+)
+
+mean_comparison
 
 
-# 5. Return Distributions
+# 9. Residual Autocorrelation for Alternative Mean Specifications
 
-ggplot(data,
-       aes(BTC_log_returns)) +
-  
-  geom_histogram(aes(y = after_stat(density)),
-                 bins = 40,
-                 colour = "black",
-                 fill = "grey80") +
-  
-  geom_density(linewidth = 1) +
-  
-  theme_minimal() +
-  
-  labs(title = "Distribution of Bitcoin Returns",
-       x = "Log Returns",
-       y = "Density")
+# EGARCH ARMA(0,0)
+
+Box.test(
+  residuals(fit.egarch, standardize = TRUE),
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 0
+)
 
 
-ggplot(data,
-       aes(Index_log_returns)) +
-  
-  geom_histogram(aes(y = after_stat(density)),
-                 bins = 40,
-                 colour = "black",
-                 fill = "grey80") +
-  
-  geom_density(linewidth = 1) +
-  
-  theme_minimal() +
-  
-  labs(title = "Distribution of J303 Returns",
-       x = "Log Returns",
-       y = "Density")
+# EGARCH ARMA(1,0)
+
+Box.test(
+  residuals(fit.egarch.ar10, standardize = TRUE),
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 1
+)
 
 
-# 6. QQ Plots
+# EGARCH ARMA(0,1)
 
-qqnorm(btc,
-       main = "QQ Plot: Bitcoin Returns")
-
-qqline(btc,
-       col = "red")
-
-
-qqnorm(J303,
-       main = "QQ Plot: J303 Returns")
-
-qqline(J303,
-       col = "red")
+Box.test(
+  residuals(fit.egarch.ma01, standardize = TRUE),
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 1
+)
 
 
-# 7. Boxplots
+# EGARCH ARMA(1,1)
 
-boxplot(btc,
-        main = "Bitcoin Returns",
-        ylab = "Log Returns")
-
-
-boxplot(J303,
-        main = "J303 Returns",
-        ylab = "Log Returns")
+Box.test(
+  residuals(fit.egarch.ar11, standardize = TRUE),
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 2
+)
 
 
-# 8. Stationarity Tests
+# 10. Display Alternative EGARCH Models
 
-adf.test(btc)
+show(fit.egarch.ar10)
 
-adf.test(J303)
+show(fit.egarch.ma01)
 
-
-# 9. Normality Tests
-
-jarque.bera.test(btc)
-
-jarque.bera.test(J303)
+show(fit.egarch.ar11)
 
 
-# 10. Ljung-Box Tests
+# 11. Variance Persistence
 
-# Test for autocorrelation in returns
+persistence(fit.garch)
 
-Box.test(btc,
-         lag = 20,
-         type = "Ljung-Box")
+persistence(fit.egarch)
 
-Box.test(J303,
-         lag = 20,
-         type = "Ljung-Box")
+persistence(fit.gjr)
 
 
-# Test for autocorrelation in squared returns
-# Significant results indicate volatility clustering.
+# 12. Nyblom Parameter Stability Test
 
-Box.test(btc^2,
-         lag = 20,
-         type = "Ljung-Box")
-
-Box.test(J303^2,
-         lag = 20,
-         type = "Ljung-Box")
+nyblom(fit.egarch)
 
 
-# 11. ARCH Test
+# 13. Extract Conditional Volatility
 
-# Significant ARCH effects indicate time-varying volatility
-# and justify the estimation of GARCH-family models.
+# EGARCH ARMA(0,0) is used as the reference model.
 
-ArchTest(btc,
-         lags = 12)
+volatility <- sigma(fit.egarch)
 
-ArchTest(J303,
-         lags = 12)
+std.residuals <- residuals(
+  fit.egarch,
+  standardize = TRUE
+)
+
+data$BTC_Volatility <- as.numeric(volatility)
 
 
-# 12. Weekday Return Check
+# 14. Conditional Volatility Plot
 
-weekday_summary <- data.frame(
+plot(data$Date,
+     volatility,
+     type = "l",
+     main = "Estimated Bitcoin Conditional Volatility",
+     xlab = "Date",
+     ylab = "Conditional Volatility")
+
+
+# 15. Standardized Residuals
+
+plot(data$Date,
+     std.residuals,
+     type = "l",
+     main = "Standardized Residuals",
+     xlab = "Date",
+     ylab = "Standardized Residual")
+
+
+# 16. Residual Distribution
+
+hist(
+  std.residuals,
+  breaks = 40,
+  probability = TRUE,
+  main = "Distribution of Standardized Residuals",
+  xlab = "Standardized Residuals",
+  ylim = c(0, 0.7)
+)
+
+lines(
+  density(std.residuals),
+  lwd = 2
+)
+
+
+# 17. QQ Plot of Standardized Residuals
+
+qqnorm(
+  std.residuals,
+  main = "QQ Plot of Standardized Residuals"
+)
+
+qqline(
+  std.residuals,
+  col = "red"
+)
+
+
+# 18. Residual Diagnostics
+
+# Test for autocorrelation in standardized residuals
+
+Box.test(
+  std.residuals,
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 0
+)
+
+
+# Test for autocorrelation in squared standardized residuals
+
+Box.test(
+  std.residuals^2,
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 0
+)
+
+
+# Test for remaining ARCH effects
+
+ArchTest(
+  std.residuals,
+  lags = 12
+)
+
+
+# 19. Weekday Standard Deviation of Standardized Residuals
+
+weekday_residuals <- data.frame(
   Day = weekdays(data$Date),
-  BTC = data$BTC_log_returns,
-  J303 = data$Index_log_returns
+  Standardized_Residual = as.numeric(std.residuals)
 )
 
-weekday_summary$Day <- factor(
-  weekday_summary$Day,
-  levels = c("Monday",
-             "Tuesday",
-             "Wednesday",
-             "Thursday",
-             "Friday")
+weekday_residuals$Day <- factor(
+  weekday_residuals$Day,
+  levels = c(
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday"
+  )
 )
 
-# Bitcoin return standard deviation by weekday
 
-aggregate(BTC ~ Day,
-          data = weekday_summary,
-          FUN = function(x) sd(x, na.rm = TRUE))
+# Standard deviation by weekday
 
-# J303 return standard deviation by weekday
+aggregate(
+  Standardized_Residual ~ Day,
+  data = weekday_residuals,
+  FUN = function(x) sd(x, na.rm = TRUE)
+)
 
-aggregate(J303 ~ Day,
-          data = weekday_summary,
-          FUN = function(x) sd(x, na.rm = TRUE))
+
+# 20. Formal Test of Weekday Variance Differences
+
+# Fligner-Killeen test for equality of residual variances
+# across weekdays
+
+fligner.test(
+  Standardized_Residual ~ Day,
+  data = weekday_residuals
+)

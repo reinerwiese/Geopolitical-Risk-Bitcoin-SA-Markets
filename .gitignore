@@ -16,3 +16,6 @@ Thumbs.db
 
 # Local data
 Thesis_Data.xlsx
+
+# Ignore generated Results folder
+Results/

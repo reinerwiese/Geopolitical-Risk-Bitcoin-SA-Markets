@@ -283,7 +283,8 @@ mean_comparison
 Box.test(
   residuals(fit.egarch, standardize = TRUE),
   lag = 20,
-  type = "Ljung-Box"
+  type = "Ljung-Box",
+  fitdf = 0
 )
 
 
@@ -292,7 +293,8 @@ Box.test(
 Box.test(
   residuals(fit.egarch.ar10, standardize = TRUE),
   lag = 20,
-  type = "Ljung-Box"
+  type = "Ljung-Box",
+  fitdf = 1
 )
 
 
@@ -301,7 +303,8 @@ Box.test(
 Box.test(
   residuals(fit.egarch.ma01, standardize = TRUE),
   lag = 20,
-  type = "Ljung-Box"
+  type = "Ljung-Box",
+  fitdf = 1
 )
 
 
@@ -310,7 +313,8 @@ Box.test(
 Box.test(
   residuals(fit.egarch.ar11, standardize = TRUE),
   lag = 20,
-  type = "Ljung-Box"
+  type = "Ljung-Box",
+  fitdf = 2
 )
 
 
@@ -408,7 +412,8 @@ qqline(
 Box.test(
   std.residuals,
   lag = 20,
-  type = "Ljung-Box"
+  type = "Ljung-Box",
+  fitdf = 0
 )
 
 
@@ -417,7 +422,8 @@ Box.test(
 Box.test(
   std.residuals^2,
   lag = 20,
-  type = "Ljung-Box"
+  type = "Ljung-Box",
+  fitdf = 0
 )
 
 

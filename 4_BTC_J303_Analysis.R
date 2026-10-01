@@ -223,11 +223,6 @@ r2.full <- summary(
 
 delta.r2 <- r2.full - r2.restricted
 
-partial.f <- anova(
-  restricted.dynamic,
-  full.dynamic
-)
-
 incremental.summary <- data.frame(
   Restricted_R2 = round(
     r2.restricted,
@@ -239,14 +234,6 @@ incremental.summary <- data.frame(
   ),
   Delta_R2 = round(
     delta.r2,
-    4
-  ),
-  Partial_F = round(
-    partial.f$F[2],
-    4
-  ),
-  P_Value = signif(
-    partial.f$`Pr(>F)`[2],
     4
   )
 )

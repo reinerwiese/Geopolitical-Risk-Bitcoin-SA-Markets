@@ -360,6 +360,70 @@ model.high.dynamic <- lm(
   data = high.gpr
 )
 
+# 10a. Restricted models: Bitcoin volatility persistence only
+
+restricted.low.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = low.gpr
+)
+
+restricted.high.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = high.gpr
+)
+
+# 10b. Incremental contribution of GPR
+
+r2.restricted.low <- summary(
+  restricted.low.dynamic
+)$r.squared
+
+r2.full.low <- summary(
+  model.low.dynamic
+)$r.squared
+
+delta.r2.low <- r2.full.low - r2.restricted.low
+
+r2.restricted.high <- summary(
+  restricted.high.dynamic
+)$r.squared
+
+r2.full.high <- summary(
+  model.high.dynamic
+)$r.squared
+
+delta.r2.high <- r2.full.high - r2.restricted.high
+
+dynamic.incremental.r2 <- data.frame(
+  Regime = c(
+    "Lower GPR",
+    "Elevated GPR"
+  ),
+  Restricted_R2 = c(
+    r2.restricted.low,
+    r2.restricted.high
+  ),
+  Full_R2 = c(
+    r2.full.low,
+    r2.full.high
+  ),
+  Delta_R2 = c(
+    delta.r2.low,
+    delta.r2.high
+  )
+)
+
+dynamic.incremental.r2[-1] <-
+  round(
+    dynamic.incremental.r2[-1],
+    4
+  )
+
+dynamic.incremental.r2
 
 # 11. Dynamic model diagnostics
 
@@ -698,6 +762,54 @@ model.high.act.dynamic <- lm(
   data = high.act
 )
 
+# 22a. ACT restricted models: Bitcoin persistence only
+
+restricted.low.act.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = low.act
+)
+
+restricted.high.act.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = high.act
+)
+
+# 22b. ACT incremental GPR contribution
+
+act.r2.restricted <- c(
+  summary(restricted.low.act.dynamic)$r.squared,
+  summary(restricted.high.act.dynamic)$r.squared
+)
+
+act.r2.full <- c(
+  summary(model.low.act.dynamic)$r.squared,
+  summary(model.high.act.dynamic)$r.squared
+)
+
+act.delta.r2 <- act.r2.full - act.r2.restricted
+
+act.incremental.r2 <- data.frame(
+  Regime = c(
+    "Lower GPR",
+    "Elevated GPR"
+  ),
+  Restricted_R2 = act.r2.restricted,
+  Full_R2 = act.r2.full,
+  Delta_R2 = act.delta.r2
+)
+
+act.incremental.r2[-1] <-
+  round(
+    act.incremental.r2[-1],
+    4
+  )
+
+act.incremental.r2
+
 
 # 23. GPRD_ACT diagnostics
 
@@ -848,6 +960,53 @@ model.high.threat.dynamic <- lm(
   data = high.threat
 )
 
+# 29a. THREAT restricted models: Bitcoin persistence only
+
+restricted.low.threat.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = low.threat
+)
+
+restricted.high.threat.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = high.threat
+)
+
+# 29b. THREAT incremental GPR contribution
+
+threat.r2.restricted <- c(
+  summary(restricted.low.threat.dynamic)$r.squared,
+  summary(restricted.high.threat.dynamic)$r.squared
+)
+
+threat.r2.full <- c(
+  summary(model.low.threat.dynamic)$r.squared,
+  summary(model.high.threat.dynamic)$r.squared
+)
+
+threat.delta.r2 <- threat.r2.full - threat.r2.restricted
+
+threat.incremental.r2 <- data.frame(
+  Regime = c(
+    "Lower GPR",
+    "Elevated GPR"
+  ),
+  Restricted_R2 = threat.r2.restricted,
+  Full_R2 = threat.r2.full,
+  Delta_R2 = threat.delta.r2
+)
+
+threat.incremental.r2[-1] <-
+  round(
+    threat.incremental.r2[-1],
+    4
+  )
+
+threat.incremental.r2
 
 # 29. GPRD_THREAT diagnostics
 
@@ -1079,6 +1238,9 @@ dynamic.comparison
 act.dynamic.comparison
 threat.dynamic.comparison
 
+dynamic.incremental.r2
+act.incremental.r2
+threat.incremental.r2
 
 # 38. Interaction results
 

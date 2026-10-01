@@ -213,34 +213,12 @@ full.dynamic <- models[["Dynamic 2 Lags"]]
 
 # 9. Incremental contribution of Bitcoin volatility
 
-r2.restricted <- summary(
-  restricted.dynamic
-)$r.squared
-
-r2.full <- summary(
-  full.dynamic
-)$r.squared
-
-delta.r2 <- r2.full - r2.restricted
-
 partial.f <- anova(
   restricted.dynamic,
   full.dynamic
 )
 
 incremental.summary <- data.frame(
-  Restricted_R2 = round(
-    r2.restricted,
-    4
-  ),
-  Full_R2 = round(
-    r2.full,
-    4
-  ),
-  Delta_R2 = round(
-    delta.r2,
-    4
-  ),
   Partial_F = round(
     partial.f$F[2],
     4
@@ -382,10 +360,6 @@ post2017.summary <- data.frame(
       contains("Coefficient"),
       ~ signif(.x, 4)
     ),
-    Adj_R2 = round(
-      Adj_R2,
-      4
-    ),
     across(
       contains("pvalue"),
       ~ signif(.x, 4)
@@ -469,10 +443,6 @@ regression.summary <- data.frame(
       contains("Coefficient"),
       ~ signif(.x, 4)
     ),
-    Adj_R2 = round(
-      Adj_R2,
-      4
-    ),
     across(
       contains("pvalue"),
       ~ signif(.x, 4)
@@ -542,6 +512,7 @@ dynamic.serial.summary <- data.frame(
 )
 
 dynamic.serial.summary
+
 
 
 

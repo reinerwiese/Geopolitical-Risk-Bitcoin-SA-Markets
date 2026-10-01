@@ -701,6 +701,9 @@ model.high.act.dynamic <- lm(
 
 # 23. GPRD_ACT diagnostics
 
+summary(model.low.act.dynamic)
+summary(model.high.act.dynamic)
+
 diag.low.act.dynamic <- model_diagnostics(
   model.low.act.dynamic
 )
@@ -766,7 +769,12 @@ act.dynamic.comparison <- data.frame(
     coef(model.low.act.dynamic)["GPRD_ACT_Lag2"],
     coef(model.high.act.dynamic)["GPRD_ACT_Lag2"]
   ),
-
+  
+  Adj_R2 = c(
+    summary(model.low.act.dynamic)$adj.r.squared,
+    summary(model.high.act.dynamic)$adj.r.squared
+  ),
+  
   Residual_SE = c(
     summary(model.low.act.dynamic)$sigma,
     summary(model.high.act.dynamic)$sigma
@@ -843,6 +851,9 @@ model.high.threat.dynamic <- lm(
 
 # 29. GPRD_THREAT diagnostics
 
+summary(model.low.threat.dynamic)
+summary(model.high.threat.dynamic)
+
 diag.low.threat.dynamic <- model_diagnostics(
   model.low.threat.dynamic
 )
@@ -907,6 +918,11 @@ threat.dynamic.comparison <- data.frame(
   GPR_Lag2 = c(
     coef(model.low.threat.dynamic)["GPRD_THREAT_Lag2"],
     coef(model.high.threat.dynamic)["GPRD_THREAT_Lag2"]
+  ),
+  
+  Adj_R2 = c(
+    summary(model.low.threat.dynamic)$adj.r.squared,
+    summary(model.high.threat.dynamic)$adj.r.squared
   ),
   
   Residual_SE = c(

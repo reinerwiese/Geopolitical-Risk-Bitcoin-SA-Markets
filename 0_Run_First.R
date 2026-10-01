@@ -298,6 +298,7 @@ GPRD_THREAT_events_31 <- identify_gpr_events(
   ma_days = 31
 )
 
+
 # 11. EVENT RESULTS
 
 format_event_results <- function(events, measure, smoothing) {
@@ -386,16 +387,20 @@ event_results <- bind_rows(
     Peak_Date
   )
 
+
 # 12. HISTORICAL GPR EVENTS
 
 historical_events <- data.frame(
   
   Event = c(
     "Crimea",
+    "Israel-Gaza",
     "Russia-Ukraine",
     "Suruc",
     "Paris",
+    "US-Iran",
     "Aleppo-Syria",
+    "Israel-Syria",
     "Qatar",
     "North Korea",
     "India-Pakistan",
@@ -403,18 +408,23 @@ historical_events <- data.frame(
     "US-Iran",
     "Israel-Gaza",
     "Russia-Ukraine",
+    "Russia-Ukraine",
     "Bakhmut",
     "Israel-Hamas",
+    "Russia-Ukraine",
     "Israel-Iran",
     "Iran"
   ),
   
   Start_Date = as.Date(c(
     "2014-03-07",
+    "2014-08-19",
     "2015-01-20",
     "2015-07-20",
     "2015-11-13",
+    "2016-01-12",
     "2016-12-01",
+    "2017-01-13",
     "2017-06-05",
     "2017-07-04",
     "2019-02-14",
@@ -422,18 +432,23 @@ historical_events <- data.frame(
     "2020-01-03",
     "2021-05-10",
     "2022-02-24",
+    "2022-07-14",
     "2023-05-01",
     "2023-10-07",
+    "2025-03-03",
     "2025-06-13",
     "2026-02-28"
   )),
   
   End_Date = as.Date(c(
     "2014-03-25",
+    "2014-08-26",
     "2015-02-18",
     "2015-07-27",
     "2015-11-30",
+    "2016-01-13",
     "2016-12-19",
+    "2017-01-14",
     "2017-06-29",
     "2017-07-28",
     "2019-03-15",
@@ -441,8 +456,10 @@ historical_events <- data.frame(
     "2020-01-13",
     "2021-05-21",
     "2022-03-16",
+    "2022-07-17",
     "2023-05-31",
     "2023-11-21",
+    "2025-03-17",
     "2025-06-30",
     "2026-05-13"
   ))
@@ -457,16 +474,39 @@ match_historical_events <- function(event_results, historical_events) {
     
     event <- event_results[i, ]
     
-    historical_events$Overlap_Days <- pmax(
+    # Allow a buffer around the historical event
+    # corresponding to the centred smoothing window.
+    
+    buffer_days <- floor(
+      event$Smoothing / 2
+    )
+    
+    historical_events_buffered <- historical_events
+    
+    historical_events_buffered$Start_Date <- 
+      historical_events_buffered$Start_Date -
+      buffer_days
+    
+    historical_events_buffered$End_Date <- 
+      historical_events_buffered$End_Date +
+      buffer_days
+    
+    historical_events_buffered$Overlap_Days <- pmax(
       0,
       as.numeric(
-        pmin(event$End_Date, historical_events$End_Date) -
-          pmax(event$Start_Date, historical_events$Start_Date)
+        pmin(
+          event$End_Date,
+          historical_events_buffered$End_Date
+        ) -
+          pmax(
+            event$Start_Date,
+            historical_events_buffered$Start_Date
+          )
       ) + 1
     )
     
-    overlap <- historical_events[
-      historical_events$Overlap_Days > 0,
+    overlap <- historical_events_buffered[
+      historical_events_buffered$Overlap_Days > 0,
     ]
     
     measure_code <- case_when(
@@ -496,7 +536,9 @@ match_historical_events <- function(event_results, historical_events) {
       
     } else {
       
-      max_overlap <- max(overlap$Overlap_Days)
+      max_overlap <- max(
+        overlap$Overlap_Days
+      )
       
       selected_event <- overlap[
         overlap$Overlap_Days == max_overlap,
@@ -523,13 +565,21 @@ match_historical_events <- function(event_results, historical_events) {
     do.call(rbind, matched_events)
   )
   
-  event_counts <- table(matched_events$Event)
+  event_counts <- table(
+    matched_events$Event
+  )
   
-  repeated_events <- names(event_counts[event_counts > 1])
+  repeated_events <- names(
+    event_counts[
+      event_counts > 1
+    ]
+  )
   
   for (event_name in repeated_events) {
     
-    rows <- which(matched_events$Event == event_name)
+    rows <- which(
+      matched_events$Event == event_name
+    )
     
     matched_events$Event[rows] <- paste0(
       event_name,
@@ -546,4 +596,5 @@ event_matches <- match_historical_events(
   event_results,
   historical_events
 )
+
 

@@ -277,6 +277,8 @@ write_table(e4$granger.post2017.summary, "T17_Granger_Post2017")
 write_table(e4$diagnostic.summary, "T18_Bitcoin_J303_Diagnostics", appendix = TRUE)
 write_table(e4$dynamic.serial.summary, "T19_Bitcoin_J303_Dynamic_Serial_Correlation", appendix = TRUE)
 
+write_table(e4$incremental.summary, "T19a_Bitcoin_J303_Incremental_R2")
+
 
 # 13. GPR Regimes: Bitcoin Volatility
 
@@ -294,6 +296,10 @@ write_table(e5$regime.summary, "T21_GPR_Regime_Descriptives")
 write_table(e5$dynamic.comparison, "T22_GPR_Regime_Dynamic_Models")
 write_table(e5$act.dynamic.comparison, "T23_GPR_ACT_Regime_Dynamic_Models", appendix = TRUE)
 write_table(e5$threat.dynamic.comparison, "T24_GPR_THREAT_Regime_Dynamic_Models", appendix = TRUE)
+
+write_table(e5$dynamic.incremental.r2, "T22a_GPR_Regime_Incremental_R2")
+write_table(e5$act.incremental.r2, "T23a_GPR_ACT_Regime_Incremental_R2", appendix = TRUE)
+write_table(e5$threat.incremental.r2, "T24a_GPR_THREAT_Regime_Incremental_R2", appendix = TRUE)
 
 
 # 14. GPR Regime Interaction
@@ -329,6 +335,10 @@ write_table(e7$dynamic.comparison, "T28_Bitcoin_J303_Regime_Spillover")
 write_table(e7$interaction.summary, "T29_Bitcoin_J303_Regime_Interaction")
 write_table(e7$act.dynamic.comparison, "T30_Bitcoin_J303_GPR_ACT_Regime_Spillover", appendix = TRUE)
 write_table(e7$threat.dynamic.comparison, "T31_Bitcoin_J303_GPR_THREAT_Regime_Spillover", appendix = TRUE)
+
+write_table(e7$gprd.incremental.r2, "T31a_Bitcoin_J303_GPRD_Regime_Incremental_R2")
+write_table(e7$act.incremental.r2, "T31b_Bitcoin_J303_ACT_Regime_Incremental_R2", appendix = TRUE)
+write_table(e7$threat.incremental.r2, "T31c_Bitcoin_J303_THREAT_Regime_Incremental_R2", appendix = TRUE)
 
 
 # 16. GPR -> Bitcoin Event Analysis

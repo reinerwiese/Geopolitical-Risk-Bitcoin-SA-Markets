@@ -99,6 +99,23 @@ dynamic_model <- function(data) {
   )
 }
 
+incremental_r2 <- function(data, full_model) {
+  
+  restricted_model <- lm(
+    J303_Volatility ~
+      J303_Volatility_Lag1 +
+      J303_Volatility_Lag2,
+    data = data
+  )
+  
+  data.frame(
+    Restricted_R2 = summary(restricted_model)$r.squared,
+    Full_R2 = summary(full_model)$r.squared,
+    Delta_R2 =
+      summary(full_model)$r.squared -
+      summary(restricted_model)$r.squared
+  )
+}
 
 dynamic_comparison <- function(
     model.low,
@@ -602,6 +619,21 @@ dynamic.comparison <- dynamic_comparison(
 
 dynamic.comparison
 
+gprd.incremental.r2 <- rbind(
+  incremental_r2(low.gpr, model.low.dynamic),
+  incremental_r2(high.gpr, model.high.dynamic)
+)
+
+gprd.incremental.r2$Regime <- c(
+  "Lower GPR",
+  "Elevated GPR"
+)
+
+gprd.incremental.r2 <- gprd.incremental.r2[
+  c("Regime", "Restricted_R2", "Full_R2", "Delta_R2")
+]
+
+gprd.incremental.r2
 
 ###############################################################
 # Section D: Dynamic GPRD Interaction Model
@@ -877,6 +909,22 @@ act.dynamic.comparison <- dynamic_comparison(
 
 act.dynamic.comparison
 
+act.incremental.r2 <- rbind(
+  incremental_r2(low.act, model.low.act.dynamic),
+  incremental_r2(high.act, model.high.act.dynamic)
+)
+
+act.incremental.r2$Regime <- c(
+  "Lower GPR",
+  "Elevated GPR"
+)
+
+act.incremental.r2 <- act.incremental.r2[
+  c("Regime", "Restricted_R2", "Full_R2", "Delta_R2")
+]
+
+act.incremental.r2
+
 
 # 28. THREAT regime splits
 
@@ -974,6 +1022,21 @@ threat.dynamic.comparison <- dynamic_comparison(
 
 threat.dynamic.comparison
 
+threat.incremental.r2 <- rbind(
+  incremental_r2(low.threat, model.low.threat.dynamic),
+  incremental_r2(high.threat, model.high.threat.dynamic)
+)
+
+threat.incremental.r2$Regime <- c(
+  "Lower GPR",
+  "Elevated GPR"
+)
+
+threat.incremental.r2 <- threat.incremental.r2[
+  c("Regime", "Restricted_R2", "Full_R2", "Delta_R2")
+]
+
+threat.incremental.r2
 
 ###############################################################
 # Section F: Alternative GPR Interaction Models

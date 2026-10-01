@@ -169,38 +169,29 @@ nw.models
 
 # 7. Model diagnostics
 
-run_diagnostics <- function(model, dynamic = FALSE) {
+run_diagnostics <- function(model) {
   
-  results <- list(
+  list(
     JB = jarque.bera.test(residuals(model)),
+    
     Ljung_Box = Box.test(
       residuals(model),
       lag = 20,
       type = "Ljung-Box"
     ),
-    Breusch_Pagan = bptest(model)
-  )
-  
-  if (dynamic) {
-    results$Breusch_Godfrey <- bgtest(
+    
+    Breusch_Pagan = bptest(model),
+    
+    Breusch_Godfrey = bgtest(
       model,
       order = 2
     )
-  } else {
-    results$Durbin_Watson <- dwtest(model)
-  }
-  
-  results
+  )
 }
 
 diagnostics <- lapply(
-  seq_along(models),
-  function(i) {
-    run_diagnostics(
-      models[[i]],
-      dynamic = names(models)[i] == "Dynamic 2 Lags"
-    )
-  }
+  models,
+  run_diagnostics
 )
 
 names(diagnostics) <- names(models)
@@ -208,21 +199,76 @@ names(diagnostics) <- names(models)
 diagnostics
 
 
-# 8. Dynamic model serial correlation
+# 8. Restricted and full dynamic models
 
-bg.dynamic.20 <- bgtest(
-  models[["Dynamic 2 Lags"]],
-  order = 20
+restricted.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = data
 )
 
-bg.dynamic.20
+full.dynamic <- models[["Dynamic 2 Lags"]]
+
+
+# 9. Incremental contribution of Bitcoin volatility
+
+r2.restricted <- summary(
+  restricted.dynamic
+)$r.squared
+
+r2.full <- summary(
+  full.dynamic
+)$r.squared
+
+delta.r2 <- r2.full - r2.restricted
+
+partial.f <- anova(
+  restricted.dynamic,
+  full.dynamic
+)
+
+incremental.summary <- data.frame(
+  Restricted_R2 = round(
+    r2.restricted,
+    4
+  ),
+  Full_R2 = round(
+    r2.full,
+    4
+  ),
+  Delta_R2 = round(
+    delta.r2,
+    4
+  ),
+  Partial_F = round(
+    partial.f$F[2],
+    4
+  ),
+  P_Value = signif(
+    partial.f$`Pr(>F)`[2],
+    4
+  )
+)
+
+incremental.summary
+
+
+# 10. Dynamic model serial correlation
+
+bg.dynamic.2 <- bgtest(
+  full.dynamic,
+  order = 2
+)
+
+bg.dynamic.2
 
 
 ###############################################################
 # Section C: Granger Causality
 ###############################################################
 
-# 9. Granger causality
+# 11. Granger causality
 
 run_granger <- function(data) {
   
@@ -269,7 +315,7 @@ granger.summary
 # Section D: Post-2017 Robustness Analysis
 ###############################################################
 
-# 10. Estimate post-2017 models
+# 12. Estimate post-2017 models
 
 post2017.data <- data0 %>%
   filter(
@@ -289,7 +335,7 @@ post2017.nw <- lapply(
 names(post2017.nw) <- names(post2017.models)
 
 
-# 11. Post-2017 regression summary
+# 13. Post-2017 regression summary
 
 post2017.summary <- data.frame(
   
@@ -356,7 +402,7 @@ rownames(post2017.summary) <- NULL
 post2017.summary
 
 
-# 12. Post-2017 Granger causality
+# 14. Post-2017 Granger causality
 
 granger.post2017.summary <- run_granger(
   post2017.data
@@ -369,7 +415,7 @@ granger.post2017.summary
 # Section E: Summary Tables
 ###############################################################
 
-# 13. Regression summary
+# 15. Regression summary
 
 regression.summary <- data.frame(
   
@@ -448,21 +494,30 @@ rownames(regression.summary) <- NULL
 regression.summary
 
 
-# 14. Diagnostic summary
+# 16. Diagnostic summary
 
 diagnostic.summary <- data.frame(
+  
   Model = names(models),
+  
   JB_P_Value = sapply(
     diagnostics,
     function(x) x$JB$p.value
   ),
+  
   Ljung_Box_P_Value = sapply(
     diagnostics,
     function(x) x$Ljung_Box$p.value
   ),
+  
   BP_P_Value = sapply(
     diagnostics,
     function(x) x$Breusch_Pagan$p.value
+  ),
+  
+  BG_2_P_Value = sapply(
+    diagnostics,
+    function(x) x$Breusch_Godfrey$p.value
   )
 ) %>%
   mutate(
@@ -477,16 +532,21 @@ rownames(diagnostic.summary) <- NULL
 diagnostic.summary
 
 
-# 15. Dynamic serial correlation summary
+# 17. Incremental Bitcoin contribution summary
+
+incremental.summary
+
+
+# 18. Dynamic serial correlation summary
 
 dynamic.serial.summary <- data.frame(
-  Test = "Breusch-Godfrey (20 lags)",
+  Test = "Breusch-Godfrey (2 lags)",
   Statistic = round(
-    unname(bg.dynamic.20$statistic),
+    unname(bg.dynamic.2$statistic),
     4
   ),
   P_Value = signif(
-    bg.dynamic.20$p.value,
+    bg.dynamic.2$p.value,
     4
   )
 )

@@ -962,18 +962,125 @@ interaction.threat.nw <- nw_test(
 
 interaction.threat.nw
 
+
 ###############################################################
-# Section C: Summary
+# Section C: Post-2017 ACT Robustness Check
 ###############################################################
 
-# 33. Final regime results
+# 33. Create post-2017 sample
+
+post2017.data <- subset(
+  data,
+  Date >= as.Date("2018-01-01")
+)
+
+
+# 34. Post-2017 ACT interaction model
+
+post2017.act.interaction <- lm(
+  BTC_Volatility ~ GPRD_ACT * GPRD_ACT_Regime,
+  data = post2017.data
+)
+
+
+# 35. Post-2017 ACT Newey-West inference
+
+post2017.act.interaction.nw <- nw_test(
+  post2017.act.interaction
+)
+
+post2017.act.interaction.nw
+
+
+# 36. Post-2017 ACT interaction summary
+
+post2017.act.interaction.summary <- data.frame(
+  
+  Variable = c(
+    "GPRD_ACT",
+    "Elevated GPR",
+    "GPRD_ACT × Elevated GPR"
+  ),
+  
+  Estimate = c(
+    post2017.act.interaction.nw[
+      "GPRD_ACT",
+      "Estimate"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Estimate"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT:GPRD_ACT_RegimeElevated GPR",
+      "Estimate"
+    ]
+  ),
+  
+  Robust_SE = c(
+    post2017.act.interaction.nw[
+      "GPRD_ACT",
+      "Std. Error"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Std. Error"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT:GPRD_ACT_RegimeElevated GPR",
+      "Std. Error"
+    ]
+  ),
+  
+  P_Value = c(
+    post2017.act.interaction.nw[
+      "GPRD_ACT",
+      "Pr(>|t|)"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT:GPRD_ACT_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ]
+  )
+  
+)
+
+post2017.act.interaction.summary$Estimate <-
+  signif(
+    post2017.act.interaction.summary$Estimate,
+    4
+  )
+
+post2017.act.interaction.summary$Robust_SE <-
+  signif(
+    post2017.act.interaction.summary$Robust_SE,
+    4
+  )
+
+post2017.act.interaction.summary$P_Value <-
+  format_p(
+    post2017.act.interaction.summary$P_Value
+  )
+
+post2017.act.interaction.summary
+
+
+###############################################################
+# Section D: Summary
+###############################################################
+
+# 37. Final regime results
 
 dynamic.comparison
 act.dynamic.comparison
 threat.dynamic.comparison
 
 
-# 34. Interaction results
+# 38. Interaction results
 
 interaction.summary <- data.frame(
   

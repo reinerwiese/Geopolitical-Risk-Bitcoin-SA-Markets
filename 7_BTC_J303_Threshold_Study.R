@@ -1214,27 +1214,138 @@ threat.interaction.summary
 
 
 ###############################################################
-# Section G: Final Results
+# Section G: Post-2017 ACT Robustness Check
 ###############################################################
 
-# 41. Dynamic regime results
+# 41. Create post-2017 sample
+
+post2017.data <- subset(
+  data,
+  Date >= as.Date("2018-01-01")
+)
+
+
+# 42. Post-2017 ACT dynamic interaction model
+
+post2017.act.interaction <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2 +
+    BTC_Volatility * GPRD_ACT_Regime +
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = post2017.data
+)
+
+
+# 43. Post-2017 ACT Newey-West inference
+
+post2017.act.interaction.nw <- nw_test(
+  post2017.act.interaction
+)
+
+post2017.act.interaction.nw
+
+
+# 44. Post-2017 ACT interaction summary
+
+post2017.act.interaction.summary <- data.frame(
+  
+  Variable = c(
+    "BTC Volatility",
+    "Elevated GPR",
+    "BTC Volatility × Elevated GPR"
+  ),
+  
+  Estimate = c(
+    post2017.act.interaction.nw[
+      "BTC_Volatility",
+      "Estimate"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Estimate"
+    ],
+    post2017.act.interaction.nw[
+      "BTC_Volatility:GPRD_ACT_RegimeElevated GPR",
+      "Estimate"
+    ]
+  ),
+  
+  Robust_SE = c(
+    post2017.act.interaction.nw[
+      "BTC_Volatility",
+      "Std. Error"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Std. Error"
+    ],
+    post2017.act.interaction.nw[
+      "BTC_Volatility:GPRD_ACT_RegimeElevated GPR",
+      "Std. Error"
+    ]
+  ),
+  
+  P_Value = c(
+    post2017.act.interaction.nw[
+      "BTC_Volatility",
+      "Pr(>|t|)"
+    ],
+    post2017.act.interaction.nw[
+      "GPRD_ACT_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ],
+    post2017.act.interaction.nw[
+      "BTC_Volatility:GPRD_ACT_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ]
+  )
+  
+)
+
+post2017.act.interaction.summary$Estimate <-
+  signif(
+    post2017.act.interaction.summary$Estimate,
+    4
+  )
+
+post2017.act.interaction.summary$Robust_SE <-
+  signif(
+    post2017.act.interaction.summary$Robust_SE,
+    4
+  )
+
+post2017.act.interaction.summary$P_Value <-
+  format_p(
+    post2017.act.interaction.summary$P_Value
+  )
+
+post2017.act.interaction.summary
+
+
+###############################################################
+# Section H: Final Results
+###############################################################
+
+# 45. Dynamic regime results
 
 dynamic.comparison
 act.dynamic.comparison
 threat.dynamic.comparison
 
 
-# 42. GPRD interaction results
+# 46. GPRD interaction results
 
 interaction.summary
 
 
-# 43. ACT interaction results
+# 47. ACT interaction results
 
 act.interaction.summary
 
 
-# 44. THREAT interaction results
+# 48. THREAT interaction results
 
 threat.interaction.summary
 

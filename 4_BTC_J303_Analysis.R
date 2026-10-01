@@ -359,6 +359,11 @@ post2017.summary <- data.frame(
     variable = "BTC_Volatility_Lag2"
   ),
   
+  Adj_R2 = sapply(
+    post2017.models,
+    function(x) summary(x)$adj.r.squared
+  ),
+  
   BTC_NW_pvalue = sapply(
     post2017.nw,
     get_nw_p,
@@ -444,6 +449,11 @@ regression.summary <- data.frame(
     models,
     get_coef,
     variable = "J303_Volatility_Lag2"
+  ),
+  
+  Adj_R2 = sapply(
+    models,
+    function(x) summary(x)$adj.r.squared
   ),
   
   BTC_NW_pvalue = sapply(

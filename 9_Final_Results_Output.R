@@ -470,6 +470,26 @@ p_gpr <- ggplot(plot_data, aes(Date, GPRD)) +
   theme_thesis
 
 
+p_gpr_act <- ggplot(plot_data, aes(Date, GPRD_ACT)) +
+  geom_line(linewidth = 0.4, colour = "black") +
+  labs(
+    title = "Daily Geopolitical Risk: Acts",
+    x = "Date",
+    y = "GPRD_ACT"
+  ) +
+  theme_thesis
+
+
+p_gpr_threat <- ggplot(plot_data, aes(Date, GPRD_THREAT)) +
+  geom_line(linewidth = 0.4, colour = "black") +
+  labs(
+    title = "Daily Geopolitical Risk: Threats",
+    x = "Date",
+    y = "GPRD_THREAT"
+  ) +
+  theme_thesis
+
+
 p_btc_vol <- ggplot(plot_data, aes(Date, BTC_Volatility)) +
   geom_line(linewidth = 0.4, colour = "black") +
   labs(
@@ -633,6 +653,8 @@ p_j303_resid <- ggplot(j303_std_resid, aes(Date, Standardized_Residual)) +
 save_plot(p_btc_return, "F01_Bitcoin_Returns")
 save_plot(p_j303_return, "F02_J303_Returns")
 save_plot(p_gpr, "F03_GPRD")
+save_plot(p_gpr_act, "F03a_GPRD_ACT")
+save_plot(p_gpr_threat, "F03b_GPRD_THREAT")
 save_plot(p_btc_vol, "F04_Bitcoin_Conditional_Volatility")
 save_plot(p_j303_vol, "F05_J303_Conditional_Volatility")
 save_plot(p_gpr_btc, "F06_GPR_Bitcoin_Volatility")

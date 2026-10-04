@@ -289,6 +289,62 @@ names(nw.models) <- names(models)
 nw.models
 
 
+# 10.1 Dynamic model comparison
+
+restricted.dynamic1 <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1,
+  data = data
+)
+
+full.dynamic1 <- models[["Dynamic: BTC Volatility Lag1 + GPR"]]
+
+restricted.dynamic2 <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = data
+)
+
+full.dynamic2 <- models[["Dynamic: BTC Volatility Lags1-2 + GPR"]]
+
+
+# Delta R-squared
+
+delta_R2_dynamic1 <- summary(full.dynamic1)$r.squared -
+  summary(restricted.dynamic1)$r.squared
+
+delta_R2_dynamic2 <- summary(full.dynamic2)$r.squared -
+  summary(restricted.dynamic2)$r.squared
+
+delta_R2_dynamic1
+delta_R2_dynamic2
+
+
+# Partial F-tests using Newey-West covariance
+
+partial_F_dynamic1 <- waldtest(
+  restricted.dynamic1,
+  full.dynamic1,
+  vcov = NeweyWest(
+    full.dynamic1,
+    prewhite = FALSE
+  )
+)
+
+partial_F_dynamic2 <- waldtest(
+  restricted.dynamic2,
+  full.dynamic2,
+  vcov = NeweyWest(
+    full.dynamic2,
+    prewhite = FALSE
+  )
+)
+
+partial_F_dynamic1
+partial_F_dynamic2
+
+
 ###############################################################
 # Section C: GPR Component Analysis
 ###############################################################
@@ -319,6 +375,95 @@ lapply(
   component.models,
   summary
 )
+
+
+# 11.1 Dynamic GPR component models
+
+component.dynamic.models <- list(
+  
+  "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT" = lm(
+    BTC_Volatility ~
+      BTC_Volatility_Lag1 +
+      BTC_Volatility_Lag2 +
+      GPRD_ACT,
+    data = data
+  ),
+  
+  "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT" = lm(
+    BTC_Volatility ~
+      BTC_Volatility_Lag1 +
+      BTC_Volatility_Lag2 +
+      GPRD_THREAT,
+    data = data
+  )
+)
+
+lapply(
+  component.dynamic.models,
+  summary
+)
+
+
+# 11.2 Restricted dynamic model
+
+restricted.component.dynamic <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = data
+)
+
+
+# Delta R-squared
+
+delta_R2_ACT <- summary(
+  component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT"
+  ]]
+)$r.squared -
+  summary(restricted.component.dynamic)$r.squared
+
+delta_R2_THREAT <- summary(
+  component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT"
+  ]]
+)$r.squared -
+  summary(restricted.component.dynamic)$r.squared
+
+delta_R2_ACT
+delta_R2_THREAT
+
+
+# Partial F-tests using Newey-West covariance
+
+partial_F_ACT <- waldtest(
+  restricted.component.dynamic,
+  component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT"
+  ]],
+  vcov = NeweyWest(
+    component.dynamic.models[[
+      "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT"
+    ]],
+    prewhite = FALSE
+  )
+)
+
+partial_F_THREAT <- waldtest(
+  restricted.component.dynamic,
+  component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT"
+  ]],
+  vcov = NeweyWest(
+    component.dynamic.models[[
+      "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT"
+    ]],
+    prewhite = FALSE
+  )
+)
+
+partial_F_ACT
+partial_F_THREAT
 
 
 # 12. Newey-West Robust Inference
@@ -470,6 +615,22 @@ regression.summary <- data.frame(
     nw.models,
     get_nw_p,
     variable = "BTC_Volatility_Lag2"
+  ),
+  
+  Delta_R2 = c(
+    NA,
+    NA,
+    NA,
+    delta_R2_dynamic1,
+    delta_R2_dynamic2
+  ),
+  
+  Partial_F_pvalue = c(
+    NA,
+    NA,
+    NA,
+    partial_F_dynamic1$`Pr(>F)`[2],
+    partial_F_dynamic2$`Pr(>F)`[2]
   )
 ) %>%
   mutate(
@@ -479,6 +640,10 @@ regression.summary <- data.frame(
     ),
     Adj_R2 = round(
       Adj_R2,
+      4
+    ),
+    Delta_R2 = round(
+      Delta_R2,
       4
     ),
     across(
@@ -545,3 +710,74 @@ gpr.component.summary <- data.frame(
 rownames(gpr.component.summary) <- NULL
 
 gpr.component.summary
+
+
+# 18. Dynamic GPR component regression summary
+
+gpr.component.dynamic.summary <- data.frame(
+  
+  Model = names(component.dynamic.models),
+  
+  GPR_Coefficient = c(
+    get_coef(
+      component.dynamic.models[[1]],
+      "GPRD_ACT"
+    ),
+    get_coef(
+      component.dynamic.models[[2]],
+      "GPRD_THREAT"
+    )
+  ),
+  
+  Adj_R2 = sapply(
+    component.dynamic.models,
+    function(x) summary(x)$adj.r.squared
+  ),
+  
+  Delta_R2 = c(
+    delta_R2_ACT,
+    delta_R2_THREAT
+  ),
+  
+  NW_pvalue = c(
+    get_nw_p(
+      run_nw(component.dynamic.models[[1]]),
+      "GPRD_ACT"
+    ),
+    get_nw_p(
+      run_nw(component.dynamic.models[[2]]),
+      "GPRD_THREAT"
+    )
+  ),
+  
+  Partial_F_pvalue = c(
+    partial_F_ACT$`Pr(>F)`[2],
+    partial_F_THREAT$`Pr(>F)`[2]
+  )
+) %>%
+  mutate(
+    GPR_Coefficient = signif(
+      GPR_Coefficient,
+      4
+    ),
+    Adj_R2 = round(
+      Adj_R2,
+      4
+    ),
+    Delta_R2 = round(
+      Delta_R2,
+      4
+    ),
+    NW_pvalue = signif(
+      NW_pvalue,
+      4
+    ),
+    Partial_F_pvalue = signif(
+      Partial_F_pvalue,
+      4
+    )
+  )
+
+rownames(gpr.component.dynamic.summary) <- NULL
+
+gpr.component.dynamic.summary

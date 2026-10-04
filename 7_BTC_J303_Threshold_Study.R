@@ -99,6 +99,7 @@ dynamic_model <- function(data) {
   )
 }
 
+
 incremental_r2 <- function(data, full_model) {
   
   restricted_model <- lm(
@@ -116,6 +117,7 @@ incremental_r2 <- function(data, full_model) {
       summary(restricted_model)$r.squared
   )
 }
+
 
 dynamic_comparison <- function(
     model.low,
@@ -635,6 +637,100 @@ gprd.incremental.r2 <- gprd.incremental.r2[
 
 gprd.incremental.r2
 
+# 14a. Restricted dynamic models for partial F-tests
+
+restricted.low.gprd.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = low.gpr
+)
+
+restricted.high.gprd.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = high.gpr
+)
+
+
+# 14b. Partial F-tests using Newey-West covariance
+
+partial.F.low.gprd.dynamic <- waldtest(
+  restricted.low.gprd.dynamic,
+  model.low.dynamic,
+  vcov = NeweyWest(
+    model.low.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.high.gprd.dynamic <- waldtest(
+  restricted.high.gprd.dynamic,
+  model.high.dynamic,
+  vcov = NeweyWest(
+    model.high.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.low.gprd.dynamic
+partial.F.high.gprd.dynamic
+
+
+# 14c. Partial F-test summary
+
+gprd.partial.f <- data.frame(
+  
+  Regime = c(
+    "Lower GPR",
+    "Elevated GPR"
+  ),
+  
+  Partial_F_Statistic = c(
+    partial.F.low.gprd.dynamic$F[2],
+    partial.F.high.gprd.dynamic$F[2]
+  ),
+  
+  Partial_F_P_Value = c(
+    partial.F.low.gprd.dynamic$`Pr(>F)`[2],
+    partial.F.high.gprd.dynamic$`Pr(>F)`[2]
+  )
+  
+)
+
+gprd.partial.f$Partial_F_Statistic <-
+  round(
+    gprd.partial.f$Partial_F_Statistic,
+    4
+  )
+
+gprd.partial.f$Partial_F_P_Value <-
+  signif(
+    gprd.partial.f$Partial_F_P_Value,
+    4
+  )
+
+gprd.partial.f
+
+gprd.incremental.r2.partial <- cbind(
+  gprd.incremental.r2,
+  gprd.partial.f[
+    c(
+      "Partial_F_Statistic",
+      "Partial_F_P_Value"
+    )
+  ]
+)
+
+gprd.incremental.r2.partial$Delta_R2 <-
+  signif(
+    gprd.incremental.r2.partial$Delta_R2,
+    4
+  )
+
+gprd.incremental.r2.partial
+
 ###############################################################
 # Section D: Dynamic GPRD Interaction Model
 ###############################################################
@@ -925,6 +1021,100 @@ act.incremental.r2 <- act.incremental.r2[
 
 act.incremental.r2
 
+# 27a. Restricted ACT dynamic models for partial F-tests
+
+restricted.low.act.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = low.act
+)
+
+restricted.high.act.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = high.act
+)
+
+
+# 27b. ACT partial F-tests using Newey-West covariance
+
+partial.F.low.act.dynamic <- waldtest(
+  restricted.low.act.dynamic,
+  model.low.act.dynamic,
+  vcov = NeweyWest(
+    model.low.act.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.high.act.dynamic <- waldtest(
+  restricted.high.act.dynamic,
+  model.high.act.dynamic,
+  vcov = NeweyWest(
+    model.high.act.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.low.act.dynamic
+partial.F.high.act.dynamic
+
+
+# 27c. ACT partial F-test summary
+
+act.partial.f <- data.frame(
+  
+  Regime = c(
+    "Lower GPR",
+    "Elevated GPR"
+  ),
+  
+  Partial_F_Statistic = c(
+    partial.F.low.act.dynamic$F[2],
+    partial.F.high.act.dynamic$F[2]
+  ),
+  
+  Partial_F_P_Value = c(
+    partial.F.low.act.dynamic$`Pr(>F)`[2],
+    partial.F.high.act.dynamic$`Pr(>F)`[2]
+  )
+  
+)
+
+act.partial.f$Partial_F_Statistic <-
+  round(
+    act.partial.f$Partial_F_Statistic,
+    4
+  )
+
+act.partial.f$Partial_F_P_Value <-
+  signif(
+    act.partial.f$Partial_F_P_Value,
+    4
+  )
+
+act.partial.f
+
+act.incremental.r2.partial <- cbind(
+  act.incremental.r2,
+  act.partial.f[
+    c(
+      "Partial_F_Statistic",
+      "Partial_F_P_Value"
+    )
+  ]
+)
+
+act.incremental.r2.partial$Delta_R2 <-
+  signif(
+    act.incremental.r2.partial$Delta_R2,
+    4
+  )
+
+act.incremental.r2.partial
+
 
 # 28. THREAT regime splits
 
@@ -1037,6 +1227,100 @@ threat.incremental.r2 <- threat.incremental.r2[
 ]
 
 threat.incremental.r2
+
+# 32a. Restricted THREAT dynamic models for partial F-tests
+
+restricted.low.threat.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = low.threat
+)
+
+restricted.high.threat.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = high.threat
+)
+
+
+# 32b. THREAT partial F-tests using Newey-West covariance
+
+partial.F.low.threat.dynamic <- waldtest(
+  restricted.low.threat.dynamic,
+  model.low.threat.dynamic,
+  vcov = NeweyWest(
+    model.low.threat.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.high.threat.dynamic <- waldtest(
+  restricted.high.threat.dynamic,
+  model.high.threat.dynamic,
+  vcov = NeweyWest(
+    model.high.threat.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.low.threat.dynamic
+partial.F.high.threat.dynamic
+
+
+# 32c. THREAT partial F-test summary
+
+threat.partial.f <- data.frame(
+  
+  Regime = c(
+    "Lower GPR",
+    "Elevated GPR"
+  ),
+  
+  Partial_F_Statistic = c(
+    partial.F.low.threat.dynamic$F[2],
+    partial.F.high.threat.dynamic$F[2]
+  ),
+  
+  Partial_F_P_Value = c(
+    partial.F.low.threat.dynamic$`Pr(>F)`[2],
+    partial.F.high.threat.dynamic$`Pr(>F)`[2]
+  )
+  
+)
+
+threat.partial.f$Partial_F_Statistic <-
+  round(
+    threat.partial.f$Partial_F_Statistic,
+    4
+  )
+
+threat.partial.f$Partial_F_P_Value <-
+  signif(
+    threat.partial.f$Partial_F_P_Value,
+    4
+  )
+
+threat.partial.f
+
+threat.incremental.r2.partial <- cbind(
+  threat.incremental.r2,
+  threat.partial.f[
+    c(
+      "Partial_F_Statistic",
+      "Partial_F_P_Value"
+    )
+  ]
+)
+
+threat.incremental.r2.partial$Delta_R2 <-
+  signif(
+    threat.incremental.r2.partial$Delta_R2,
+    4
+  )
+
+threat.incremental.r2.partial
 
 ###############################################################
 # Section F: Alternative GPR Interaction Models
@@ -1396,6 +1680,10 @@ post2017.act.interaction.summary
 dynamic.comparison
 act.dynamic.comparison
 threat.dynamic.comparison
+
+gprd.incremental.r2.partial
+act.incremental.r2.partial
+threat.incremental.r2.partial
 
 
 # 46. GPRD interaction results

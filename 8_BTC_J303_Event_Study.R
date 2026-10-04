@@ -76,6 +76,7 @@ run_event_study <- function(smoothing_window) {
         
         data.frame(
           Event_ID = events$Event_ID[i],
+          Episode = events$Episode[i],
           Event = events$Event_Name[i],
           Measure = events$Measure[i],
           Peak_Date = events$Peak_Date[i],
@@ -94,9 +95,9 @@ run_event_study <- function(smoothing_window) {
     )
   )
   
-  event.statistics[-c(1, 2, 3, 4)] <-
+  event.statistics[-c(1, 2, 3, 4, 5)] <-
     round(
-      event.statistics[-c(1, 2, 3, 4)],
+      event.statistics[-c(1, 2, 3, 4, 5)],
       4
     )
   
@@ -116,6 +117,7 @@ run_event_study <- function(smoothing_window) {
         
         data.frame(
           Event_ID = events$Event_ID[i],
+          Episode = events$Episode[i],
           Event = events$Event_Name[i],
           Measure = events$Measure[i],
           Peak_Date = events$Peak_Date[i],
@@ -178,6 +180,7 @@ run_event_study <- function(smoothing_window) {
         
         data.frame(
           Event_ID = names(event.models)[i],
+          Episode = events$Episode[i],
           Event = events$Event_Name[i],
           Measure = events$Measure[i],
           Peak_Date = events$Peak_Date[i],
@@ -230,6 +233,7 @@ run_event_study <- function(smoothing_window) {
         
         data.frame(
           Event_ID = events$Event_ID[i],
+          Episode = events$Episode[i],
           Event = events$Event_Name[i],
           Measure = events$Measure[i],
           Peak_Date = events$Peak_Date[i],
@@ -388,6 +392,7 @@ event.stability.data <- rbind(
   
   data.frame(
     Event_ID = event.results_11$events$Event_ID,
+    Episode = event.results_11$events$Episode,
     Event = event.results_11$events$Event_Name,
     Measure = event.results_11$events$Measure,
     Smoothing = 11,
@@ -397,6 +402,7 @@ event.stability.data <- rbind(
   
   data.frame(
     Event_ID = event.results_21$events$Event_ID,
+    Episode = event.results_21$events$Episode,
     Event = event.results_21$events$Event_Name,
     Measure = event.results_21$events$Measure,
     Smoothing = 21,
@@ -406,6 +412,7 @@ event.stability.data <- rbind(
   
   data.frame(
     Event_ID = event.results_31$events$Event_ID,
+    Episode = event.results_31$events$Episode,
     Event = event.results_31$events$Event_Name,
     Measure = event.results_31$events$Measure,
     Smoothing = 31,
@@ -415,88 +422,6 @@ event.stability.data <- rbind(
 )
 
 
-match_event_peaks <- function(x) {
-  
-  x <- x[order(x$Peak_Row), ]
-  
-  x$Episode_ID <- NA_integer_
-  
-  episode_id <- 0
-  
-  for (i in seq_len(nrow(x))) {
-    
-    if (!is.na(x$Episode_ID[i])) next
-    
-    episode_id <- episode_id + 1
-    
-    x$Episode_ID[i] <- episode_id
-    
-    repeat {
-      
-      current_rows <- which(
-        x$Episode_ID == episode_id
-      )
-      
-      matched_rows <- which(
-        sapply(
-          seq_len(nrow(x)),
-          function(j) {
-            
-            if (!is.na(x$Episode_ID[j])) {
-              return(FALSE)
-            }
-            
-            any(
-              sapply(
-                current_rows,
-                function(k) {
-                  
-                  x$Smoothing[j] != x$Smoothing[k] &&
-                    abs(
-                      x$Peak_Row[j] -
-                        x$Peak_Row[k]
-                    ) <=
-                    floor(
-                      max(
-                        x$Smoothing[j],
-                        x$Smoothing[k]
-                      ) / 2
-                    )
-                  
-                }
-              )
-            )
-            
-          }
-        )
-      )
-      
-      if (length(matched_rows) == 0) break
-      
-      x$Episode_ID[matched_rows] <- episode_id
-      
-    }
-    
-  }
-  
-  return(x)
-}
-
-
-event.stability.data <- do.call(
-  rbind,
-  lapply(
-    split(
-      event.stability.data,
-      event.stability.data$Measure
-    ),
-    match_event_peaks
-  )
-)
-
-rownames(event.stability.data) <- NULL
-
-
 event.stability <- do.call(
   rbind,
   lapply(
@@ -504,7 +429,7 @@ event.stability <- do.call(
       event.stability.data,
       list(
         event.stability.data$Measure,
-        event.stability.data$Episode_ID
+        event.stability.data$Episode
       ),
       drop = TRUE
     ),
@@ -523,6 +448,7 @@ event.stability <- do.call(
       }
       
       data.frame(
+        Episode = representative$Episode,
         Event = representative$Event,
         Measure = representative$Measure,
         
@@ -590,6 +516,7 @@ regression.stability.data <- rbind(
   
   data.frame(
     Event_ID = event.results_11$regression$Event_ID,
+    Episode = event.results_11$regression$Episode,
     Event = event.results_11$regression$Event,
     Measure = event.results_11$regression$Measure,
     Smoothing = 11,
@@ -601,6 +528,7 @@ regression.stability.data <- rbind(
   
   data.frame(
     Event_ID = event.results_21$regression$Event_ID,
+    Episode = event.results_21$regression$Episode,
     Event = event.results_21$regression$Event,
     Measure = event.results_21$regression$Measure,
     Smoothing = 21,
@@ -612,6 +540,7 @@ regression.stability.data <- rbind(
   
   data.frame(
     Event_ID = event.results_31$regression$Event_ID,
+    Episode = event.results_31$regression$Episode,
     Event = event.results_31$regression$Event,
     Measure = event.results_31$regression$Measure,
     Smoothing = 31,
@@ -623,20 +552,6 @@ regression.stability.data <- rbind(
 )
 
 
-regression.stability.data <- do.call(
-  rbind,
-  lapply(
-    split(
-      regression.stability.data,
-      regression.stability.data$Measure
-    ),
-    match_event_peaks
-  )
-)
-
-rownames(regression.stability.data) <- NULL
-
-
 regression.stability <- do.call(
   rbind,
   lapply(
@@ -644,7 +559,7 @@ regression.stability <- do.call(
       regression.stability.data,
       list(
         regression.stability.data$Measure,
-        regression.stability.data$Episode_ID
+        regression.stability.data$Episode
       ),
       drop = TRUE
     ),
@@ -663,6 +578,7 @@ regression.stability <- do.call(
       }
       
       data.frame(
+        Episode = representative$Episode,
         Event = representative$Event,
         Measure = representative$Measure,
         
@@ -739,6 +655,7 @@ event.coefficient.plot.data <- event.results_21$regression[
   ,
   c(
     "Event_ID",
+    "Episode",
     "Event",
     "Measure",
     "BTC_Coefficient"

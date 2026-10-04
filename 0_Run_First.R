@@ -505,9 +505,251 @@ event_results <- event_results %>%
   )
 
 
+# 14. OVERLAPPING EVENT WINDOWS
+
+# Overlap is used to identify candidate matches across smoothing specifications.
+# The final Episode assignment is manually validated below.
+
+match_event_candidates <- function(x) {
+  
+  x <- x[
+    order(
+      x$Peak_Row
+    ),
+  ]
+  
+  x$Candidate_Episode <- NA_integer_
+  
+  episode <- 0
+  
+  for (i in seq_len(nrow(x))) {
+    
+    if (!is.na(x$Candidate_Episode[i])) {
+      next
+    }
+    
+    episode <- episode + 1
+    
+    x$Candidate_Episode[i] <- episode
+    
+    repeat {
+      
+      current_rows <- which(
+        x$Candidate_Episode == episode
+      )
+      
+      matched_rows <- which(
+        sapply(
+          seq_len(nrow(x)),
+          function(j) {
+            
+            if (!is.na(x$Candidate_Episode[j])) {
+              return(FALSE)
+            }
+            
+            any(
+              sapply(
+                current_rows,
+                function(k) {
+                  
+                  x$Smoothing[j] !=
+                    x$Smoothing[k] &&
+                    x$News_Start_Row[j] <=
+                    x$News_End_Row[k] &&
+                    x$News_Start_Row[k] <=
+                    x$News_End_Row[j]
+                  
+                }
+              )
+            )
+            
+          }
+        )
+      )
+      
+      if (length(matched_rows) == 0) {
+        break
+      }
+      
+      x$Candidate_Episode[matched_rows] <-
+        episode
+      
+    }
+    
+  }
+  
+  x$Candidate_Episode <- LETTERS[
+    x$Candidate_Episode
+  ]
+  
+  return(x)
+}
+
+
+candidate_event_results <- do.call(
+  rbind,
+  lapply(
+    split(
+      event_results,
+      event_results$Measure
+    ),
+    match_event_candidates
+  )
+)
+
+rownames(candidate_event_results) <- NULL
+
+
+# 15. MANUALLY VALIDATED EVENT EPISODES
+
+manual_episode_map <- bind_rows(
+  
+  data.frame(
+    Measure = "GPRD",
+    Peak_Date = as.Date(c(
+      "2015-07-22",
+      "2015-11-23",
+      "2015-11-30",
+      "2017-06-07",
+      "2019-10-02",
+      "2021-05-06",
+      "2021-05-20",
+      "2021-06-01",
+      "2023-05-24",
+      "2023-10-27",
+      "2025-03-13",
+      "2025-06-05",
+      "2026-03-10",
+      "2026-03-17",
+      "2026-03-24"
+    )),
+    Episode = c(
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "M",
+      "M"
+    )
+  ),
+  
+  data.frame(
+    Measure = "GPRD_ACT",
+    Peak_Date = as.Date(c(
+      "2015-01-29",
+      "2015-11-23",
+      "2015-11-30",
+      "2015-12-07",
+      "2016-12-13",
+      "2017-01-13",
+      "2017-06-07",
+      "2019-03-08",
+      "2020-01-06",
+      "2021-05-20",
+      "2025-03-06",
+      "2025-03-13",
+      "2025-06-24",
+      "2026-03-17",
+      "2026-03-24"
+    )),
+    Episode = c(
+      "A",
+      "B",
+      "C",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "J",
+      "K",
+      "L",
+      "L"
+    )
+  ),
+  
+  data.frame(
+    Measure = "GPRD_THREAT",
+    Peak_Date = as.Date(c(
+      "2014-03-17",
+      "2014-08-21",
+      "2015-11-30",
+      "2016-01-12",
+      "2017-07-25",
+      "2019-10-02",
+      "2020-01-09",
+      "2021-05-21",
+      "2022-03-01",
+      "2022-03-08",
+      "2022-07-15",
+      "2025-06-05",
+      "2025-06-20",
+      "2026-03-24",
+      "2026-03-31"
+    )),
+    Episode = c(
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "M"
+    )
+  )
+)
+
+
+event_results <- event_results %>%
+  left_join(
+    manual_episode_map,
+    by = c(
+      "Measure",
+      "Peak_Date"
+    )
+  )
+
+
+if (any(is.na(event_results$Episode))) {
+  
+  stop(
+    "One or more events do not have a manually validated Episode assignment."
+  )
+}
+
+
+# 16. FINAL EVENT TABLE
+
 event_dates <- event_results %>%
+  arrange(
+    Measure,
+    Episode,
+    Smoothing,
+    Peak_Date
+  ) %>%
   select(
     Event_ID,
+    Episode,
     Event_Name,
     Measure,
     Smoothing,

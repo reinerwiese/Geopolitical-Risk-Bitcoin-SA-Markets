@@ -398,6 +398,30 @@ r2.full.high <- summary(
 
 delta.r2.high <- r2.full.high - r2.restricted.high
 
+# 10c. Partial F-tests using Newey-West covariance
+
+partial.F.low.dynamic <- waldtest(
+  restricted.low.dynamic,
+  model.low.dynamic,
+  vcov = NeweyWest(
+    model.low.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.high.dynamic <- waldtest(
+  restricted.high.dynamic,
+  model.high.dynamic,
+  vcov = NeweyWest(
+    model.high.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.low.dynamic
+partial.F.high.dynamic
+
+
 dynamic.incremental.r2 <- data.frame(
   Regime = c(
     "Lower GPR",
@@ -414,16 +438,49 @@ dynamic.incremental.r2 <- data.frame(
   Delta_R2 = c(
     delta.r2.low,
     delta.r2.high
+  ),
+  Partial_F_Statistic = c(
+    partial.F.low.dynamic$F[2],
+    partial.F.high.dynamic$F[2]
+  ),
+  Partial_F_P_Value = c(
+    partial.F.low.dynamic$`Pr(>F)`[2],
+    partial.F.high.dynamic$`Pr(>F)`[2]
   )
 )
 
-dynamic.incremental.r2[-1] <-
+dynamic.incremental.r2$Restricted_R2 <-
   round(
-    dynamic.incremental.r2[-1],
+    dynamic.incremental.r2$Restricted_R2,
+    4
+  )
+
+dynamic.incremental.r2$Full_R2 <-
+  round(
+    dynamic.incremental.r2$Full_R2,
+    4
+  )
+
+dynamic.incremental.r2$Delta_R2 <-
+  signif(
+    dynamic.incremental.r2$Delta_R2,
+    4
+  )
+
+dynamic.incremental.r2$Partial_F_Statistic <-
+  round(
+    dynamic.incremental.r2$Partial_F_Statistic,
+    4
+  )
+
+dynamic.incremental.r2$Partial_F_P_Value <-
+  signif(
+    dynamic.incremental.r2$Partial_F_P_Value,
     4
   )
 
 dynamic.incremental.r2
+
 
 # 11. Dynamic model diagnostics
 
@@ -792,6 +849,30 @@ act.r2.full <- c(
 
 act.delta.r2 <- act.r2.full - act.r2.restricted
 
+# 22c. ACT partial F-tests using Newey-West covariance
+
+partial.F.low.act.dynamic <- waldtest(
+  restricted.low.act.dynamic,
+  model.low.act.dynamic,
+  vcov = NeweyWest(
+    model.low.act.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.high.act.dynamic <- waldtest(
+  restricted.high.act.dynamic,
+  model.high.act.dynamic,
+  vcov = NeweyWest(
+    model.high.act.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.low.act.dynamic
+partial.F.high.act.dynamic
+
+
 act.incremental.r2 <- data.frame(
   Regime = c(
     "Lower GPR",
@@ -799,12 +880,44 @@ act.incremental.r2 <- data.frame(
   ),
   Restricted_R2 = act.r2.restricted,
   Full_R2 = act.r2.full,
-  Delta_R2 = act.delta.r2
+  Delta_R2 = act.delta.r2,
+  Partial_F_Statistic = c(
+    partial.F.low.act.dynamic$F[2],
+    partial.F.high.act.dynamic$F[2]
+  ),
+  Partial_F_P_Value = c(
+    partial.F.low.act.dynamic$`Pr(>F)`[2],
+    partial.F.high.act.dynamic$`Pr(>F)`[2]
+  )
 )
 
-act.incremental.r2[-1] <-
+act.incremental.r2$Restricted_R2 <-
   round(
-    act.incremental.r2[-1],
+    act.incremental.r2$Restricted_R2,
+    4
+  )
+
+act.incremental.r2$Full_R2 <-
+  round(
+    act.incremental.r2$Full_R2,
+    4
+  )
+
+act.incremental.r2$Delta_R2 <-
+  signif(
+    act.incremental.r2$Delta_R2,
+    4
+  )
+
+act.incremental.r2$Partial_F_Statistic <-
+  round(
+    act.incremental.r2$Partial_F_Statistic,
+    4
+  )
+
+act.incremental.r2$Partial_F_P_Value <-
+  signif(
+    act.incremental.r2$Partial_F_P_Value,
     4
   )
 
@@ -990,6 +1103,30 @@ threat.r2.full <- c(
 
 threat.delta.r2 <- threat.r2.full - threat.r2.restricted
 
+# 29c. THREAT partial F-tests using Newey-West covariance
+
+partial.F.low.threat.dynamic <- waldtest(
+  restricted.low.threat.dynamic,
+  model.low.threat.dynamic,
+  vcov = NeweyWest(
+    model.low.threat.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.high.threat.dynamic <- waldtest(
+  restricted.high.threat.dynamic,
+  model.high.threat.dynamic,
+  vcov = NeweyWest(
+    model.high.threat.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.low.threat.dynamic
+partial.F.high.threat.dynamic
+
+
 threat.incremental.r2 <- data.frame(
   Regime = c(
     "Lower GPR",
@@ -997,16 +1134,49 @@ threat.incremental.r2 <- data.frame(
   ),
   Restricted_R2 = threat.r2.restricted,
   Full_R2 = threat.r2.full,
-  Delta_R2 = threat.delta.r2
+  Delta_R2 = threat.delta.r2,
+  Partial_F_Statistic = c(
+    partial.F.low.threat.dynamic$F[2],
+    partial.F.high.threat.dynamic$F[2]
+  ),
+  Partial_F_P_Value = c(
+    partial.F.low.threat.dynamic$`Pr(>F)`[2],
+    partial.F.high.threat.dynamic$`Pr(>F)`[2]
+  )
 )
 
-threat.incremental.r2[-1] <-
+threat.incremental.r2$Restricted_R2 <-
   round(
-    threat.incremental.r2[-1],
+    threat.incremental.r2$Restricted_R2,
+    4
+  )
+
+threat.incremental.r2$Full_R2 <-
+  round(
+    threat.incremental.r2$Full_R2,
+    4
+  )
+
+threat.incremental.r2$Delta_R2 <-
+  signif(
+    threat.incremental.r2$Delta_R2,
+    4
+  )
+
+threat.incremental.r2$Partial_F_Statistic <-
+  round(
+    threat.incremental.r2$Partial_F_Statistic,
+    4
+  )
+
+threat.incremental.r2$Partial_F_P_Value <-
+  signif(
+    threat.incremental.r2$Partial_F_P_Value,
     4
   )
 
 threat.incremental.r2
+
 
 # 29. GPRD_THREAT diagnostics
 
@@ -1297,4 +1467,5 @@ interaction.summary$Interaction_P_Value <-
   format_p(interaction.summary$Interaction_P_Value)
 
 interaction.summary
+
 

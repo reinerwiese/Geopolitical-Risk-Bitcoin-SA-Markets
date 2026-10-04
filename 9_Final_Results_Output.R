@@ -336,106 +336,95 @@ write_table(e7$interaction.summary, "T29_Bitcoin_J303_Regime_Interaction")
 write_table(e7$act.dynamic.comparison, "T30_Bitcoin_J303_GPR_ACT_Regime_Spillover", appendix = TRUE)
 write_table(e7$threat.dynamic.comparison, "T31_Bitcoin_J303_GPR_THREAT_Regime_Spillover", appendix = TRUE)
 
-write_table(e7$gprd.incremental.r2, "T31a_Bitcoin_J303_GPRD_Regime_Incremental_R2")
-write_table(e7$act.incremental.r2, "T31b_Bitcoin_J303_ACT_Regime_Incremental_R2", appendix = TRUE)
-write_table(e7$threat.incremental.r2, "T31c_Bitcoin_J303_THREAT_Regime_Incremental_R2", appendix = TRUE)
+write_table(
+  e7$gprd.incremental.r2.partial,
+  "T31a_Bitcoin_J303_GPRD_Regime_Incremental_R2"
+)
+
+write_table(
+  e7$act.incremental.r2.partial,
+  "T31b_Bitcoin_J303_ACT_Regime_Incremental_R2",
+  appendix = TRUE
+)
+
+write_table(
+  e7$threat.incremental.r2.partial,
+  "T31c_Bitcoin_J303_THREAT_Regime_Incremental_R2",
+  appendix = TRUE
+)
 
 
 # 16. GPR -> Bitcoin Event Analysis
 
-write_table(e6$event.results_21$events, "T32_GPR_Bitcoin_Events_21Day")
-write_table(e6$event.results_21$statistics, "T33_GPR_Bitcoin_Event_Statistics_21Day", appendix = TRUE)
+write_table(
+  e6$event.results_21$events,
+  "T32_GPR_Bitcoin_Events_21Day"
+)
+
+write_table(
+  e6$event.results_21$statistics,
+  "T33_GPR_Bitcoin_Event_Statistics_21Day",
+  appendix = TRUE
+)
 
 event21_regression <- e6$event.results_21$regression
 
-event21_measure <- e6$event.results_21$events %>%
-  select(Event, Measure) %>%
-  distinct()
+write_table(
+  event21_regression,
+  "T34_GPR_Bitcoin_Event_Regression_21Day"
+)
 
-event21_regression <- event21_regression %>%
-  left_join(event21_measure, by = "Event")
+write_table(
+  e6$event.window.comparison,
+  "T35_GPR_Bitcoin_Event_Window_Comparison",
+  appendix = TRUE
+)
 
-write_table(event21_regression, "T34_GPR_Bitcoin_Event_Regression_21Day")
-write_table(e6$event.window.comparison, "T35_GPR_Bitcoin_Event_Window_Comparison", appendix = TRUE)
-write_table(e6$event.stability, "T36_GPR_Bitcoin_Event_Stability", appendix = TRUE)
+write_table(
+  e6$event.stability,
+  "T36_GPR_Bitcoin_Event_Stability",
+  appendix = TRUE
+)
 
 
 # 17. GPR -> Bitcoin Event Regression Stability
 
-make_gpr_btc_regression_stability <- function(event_result, smoothing) {
-  
-  reg <- event_result$regression
-  
-  event_measure <- event_result$events %>%
-    select(Event, Measure) %>%
-    distinct()
-  
-  reg <- reg %>%
-    left_join(event_measure, by = "Event")
-  
-  data.frame(
-    Event = reg$Event,
-    Base_Event = sub(" [GAT][0-9]+(-[0-9]+)?$", "", reg$Event),
-    Measure = reg$Measure,
-    Smoothing = smoothing,
-    Significant_NW = reg$Significant
-  )
-}
-
-
-regression.stability.data <- bind_rows(
-  make_gpr_btc_regression_stability(e6$event.results_11, 11),
-  make_gpr_btc_regression_stability(e6$event.results_21, 21),
-  make_gpr_btc_regression_stability(e6$event.results_31, 31)
+write_table(
+  e6$regression.stability,
+  "T37_GPR_Bitcoin_Event_Regression_Stability",
+  appendix = TRUE
 )
-
-
-regression.stability <- bind_rows(
-  lapply(
-    split(
-      regression.stability.data,
-      list(
-        regression.stability.data$Base_Event,
-        regression.stability.data$Measure
-      ),
-      drop = TRUE
-    ),
-    function(x) {
-      data.frame(
-        Event = x$Base_Event[1],
-        Measure = x$Measure[1],
-        NW_Significant_11 = ifelse(
-          any(x$Smoothing == 11 & x$Significant_NW == "Yes"),
-          "Yes",
-          "No"
-        ),
-        NW_Significant_21 = ifelse(
-          any(x$Smoothing == 21 & x$Significant_NW == "Yes"),
-          "Yes",
-          "No"
-        ),
-        NW_Significant_31 = ifelse(
-          any(x$Smoothing == 31 & x$Significant_NW == "Yes"),
-          "Yes",
-          "No"
-        )
-      )
-    }
-  )
-)
-
-rownames(regression.stability) <- NULL
-
-write_table(regression.stability, "T37_GPR_Bitcoin_Event_Regression_Stability", appendix = TRUE)
 
 
 # 18. Bitcoin -> J303 Event Analysis
 
-write_table(e8$event.results_21$events, "T38_Bitcoin_J303_Events_21Day")
-write_table(e8$event.results_21$statistics, "T39_Bitcoin_J303_Event_Statistics_21Day", appendix = TRUE)
-write_table(e8$event.results_21$regression, "T40_Bitcoin_J303_Event_Regression_21Day")
-write_table(e8$event.window.comparison, "T41_Bitcoin_J303_Event_Window_Comparison", appendix = TRUE)
-write_table(e8$regression.stability, "T42_Bitcoin_J303_Event_Regression_Stability", appendix = TRUE)
+write_table(
+  e8$event.results_21$events,
+  "T38_Bitcoin_J303_Events_21Day"
+)
+
+write_table(
+  e8$event.results_21$statistics,
+  "T39_Bitcoin_J303_Event_Statistics_21Day",
+  appendix = TRUE
+)
+
+write_table(
+  e8$event.results_21$regression,
+  "T40_Bitcoin_J303_Event_Regression_21Day"
+)
+
+write_table(
+  e8$event.window.comparison,
+  "T41_Bitcoin_J303_Event_Window_Comparison",
+  appendix = TRUE
+)
+
+write_table(
+  e8$regression.stability,
+  "T42_Bitcoin_J303_Event_Regression_Stability",
+  appendix = TRUE
+)
 
 
 # 19. Prepare Figure Data
@@ -445,6 +434,8 @@ plot_data <- data.frame(
   Bitcoin = data0$BTC_log_returns,
   J303 = data0$Index_log_returns,
   GPRD = data0$GPRD,
+  GPRD_ACT = data0$GPRD_ACT,
+  GPRD_THREAT = data0$GPRD_THREAT,
   BTC_Volatility = data0$BTC_Volatility,
   J303_Volatility = data0$J303_Volatility
 )
@@ -452,26 +443,74 @@ plot_data <- data.frame(
 
 # 20. Create Figures
 
-p_btc_return <- ggplot(plot_data, aes(Date, Bitcoin)) +
-  geom_line(linewidth = 0.35, colour = "black") +
-  labs(title = "Bitcoin Daily Log Returns", x = "Date", y = "Log return") +
+p_btc_return <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    Bitcoin
+  )
+) +
+  geom_line(
+    linewidth = 0.35,
+    colour = "black"
+  ) +
+  labs(
+    title = "Bitcoin Daily Log Returns",
+    x = "Date",
+    y = "Log return"
+  ) +
   theme_thesis
 
 
-p_j303_return <- ggplot(plot_data, aes(Date, J303)) +
-  geom_line(linewidth = 0.35, colour = "black") +
-  labs(title = "J303 Daily Log Returns", x = "Date", y = "Log return") +
+p_j303_return <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    J303
+  )
+) +
+  geom_line(
+    linewidth = 0.35,
+    colour = "black"
+  ) +
+  labs(
+    title = "J303 Daily Log Returns",
+    x = "Date",
+    y = "Log return"
+  ) +
   theme_thesis
 
 
-p_gpr <- ggplot(plot_data, aes(Date, GPRD)) +
-  geom_line(linewidth = 0.4, colour = "black") +
-  labs(title = "Daily Geopolitical Risk Index", x = "Date", y = "GPRD") +
+p_gpr <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    GPRD
+  )
+) +
+  geom_line(
+    linewidth = 0.4,
+    colour = "black"
+  ) +
+  labs(
+    title = "Daily Geopolitical Risk Index",
+    x = "Date",
+    y = "GPRD"
+  ) +
   theme_thesis
 
 
-p_gpr_act <- ggplot(plot_data, aes(Date, GPRD_ACT)) +
-  geom_line(linewidth = 0.4, colour = "black") +
+p_gpr_act <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    GPRD_ACT
+  )
+) +
+  geom_line(
+    linewidth = 0.4,
+    colour = "black"
+  ) +
   labs(
     title = "Daily Geopolitical Risk: Acts",
     x = "Date",
@@ -480,8 +519,17 @@ p_gpr_act <- ggplot(plot_data, aes(Date, GPRD_ACT)) +
   theme_thesis
 
 
-p_gpr_threat <- ggplot(plot_data, aes(Date, GPRD_THREAT)) +
-  geom_line(linewidth = 0.4, colour = "black") +
+p_gpr_threat <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    GPRD_THREAT
+  )
+) +
+  geom_line(
+    linewidth = 0.4,
+    colour = "black"
+  ) +
   labs(
     title = "Daily Geopolitical Risk: Threats",
     x = "Date",
@@ -490,8 +538,17 @@ p_gpr_threat <- ggplot(plot_data, aes(Date, GPRD_THREAT)) +
   theme_thesis
 
 
-p_btc_vol <- ggplot(plot_data, aes(Date, BTC_Volatility)) +
-  geom_line(linewidth = 0.4, colour = "black") +
+p_btc_vol <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    BTC_Volatility
+  )
+) +
+  geom_line(
+    linewidth = 0.4,
+    colour = "black"
+  ) +
   labs(
     title = "Bitcoin Conditional Volatility",
     x = "Date",
@@ -500,8 +557,17 @@ p_btc_vol <- ggplot(plot_data, aes(Date, BTC_Volatility)) +
   theme_thesis
 
 
-p_j303_vol <- ggplot(plot_data, aes(Date, J303_Volatility)) +
-  geom_line(linewidth = 0.4, colour = "black") +
+p_j303_vol <- ggplot(
+  plot_data,
+  aes(
+    Date,
+    J303_Volatility
+  )
+) +
+  geom_line(
+    linewidth = 0.4,
+    colour = "black"
+  ) +
   labs(
     title = "J303 Conditional Volatility",
     x = "Date",
@@ -510,10 +576,29 @@ p_j303_vol <- ggplot(plot_data, aes(Date, J303_Volatility)) +
   theme_thesis
 
 
-p_gpr_btc <- ggplot(data0, aes(GPRD, BTC_Volatility)) +
-  geom_point(alpha = 0.45, shape = 16, colour = "black") +
-  geom_smooth(method = "lm", se = TRUE, colour = "black", linetype = "dashed") +
-  geom_smooth(method = "loess", se = TRUE, colour = "grey40") +
+p_gpr_btc <- ggplot(
+  data0,
+  aes(
+    GPRD,
+    BTC_Volatility
+  )
+) +
+  geom_point(
+    alpha = 0.45,
+    shape = 16,
+    colour = "black"
+  ) +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    colour = "black",
+    linetype = "dashed"
+  ) +
+  geom_smooth(
+    method = "loess",
+    se = TRUE,
+    colour = "grey40"
+  ) +
   labs(
     title = "Bitcoin Conditional Volatility and Geopolitical Risk",
     x = "Geopolitical Risk Index",
@@ -522,10 +607,29 @@ p_gpr_btc <- ggplot(data0, aes(GPRD, BTC_Volatility)) +
   theme_thesis
 
 
-p_btc_j303 <- ggplot(data0, aes(BTC_Volatility, J303_Volatility)) +
-  geom_point(alpha = 0.45, shape = 16, colour = "black") +
-  geom_smooth(method = "lm", se = TRUE, colour = "black", linetype = "dashed") +
-  geom_smooth(method = "loess", se = TRUE, colour = "grey40") +
+p_btc_j303 <- ggplot(
+  data0,
+  aes(
+    BTC_Volatility,
+    J303_Volatility
+  )
+) +
+  geom_point(
+    alpha = 0.45,
+    shape = 16,
+    colour = "black"
+  ) +
+  geom_smooth(
+    method = "lm",
+    se = TRUE,
+    colour = "black",
+    linetype = "dashed"
+  ) +
+  geom_smooth(
+    method = "loess",
+    se = TRUE,
+    colour = "grey40"
+  ) +
   labs(
     title = "Bitcoin and J303 Conditional Volatility",
     x = "Bitcoin conditional volatility",
@@ -536,17 +640,36 @@ p_btc_j303 <- ggplot(data0, aes(BTC_Volatility, J303_Volatility)) +
 
 p_regime <- ggplot(
   data0,
-  aes(GPRD, BTC_Volatility, shape = GPR_Regime)
+  aes(
+    GPRD,
+    BTC_Volatility,
+    shape = GPR_Regime
+  )
 ) +
-  geom_point(alpha = 0.45, colour = "black") +
+  geom_point(
+    alpha = 0.45,
+    colour = "black"
+  ) +
   geom_smooth(
-    aes(linetype = GPR_Regime),
+    aes(
+      linetype = GPR_Regime
+    ),
     method = "lm",
     se = TRUE,
     colour = "black"
   ) +
-  scale_shape_manual(values = c(16, 1)) +
-  scale_linetype_manual(values = c("solid", "dashed")) +
+  scale_shape_manual(
+    values = c(
+      16,
+      1
+    )
+  ) +
+  scale_linetype_manual(
+    values = c(
+      "solid",
+      "dashed"
+    )
+  ) +
   labs(
     title = "Bitcoin Volatility and Geopolitical Risk by Regime",
     x = "Geopolitical Risk Index",
@@ -559,23 +682,32 @@ p_regime <- ggplot(
 
 event21 <- e6$event.results_21$regression
 
-event21_measure <- e6$event.results_21$events %>%
-  select(Event, Measure) %>%
-  distinct()
-
-event21 <- event21 %>%
-  left_join(event21_measure, by = "Event")
-
-event21$Event <- factor(event21$Event, levels = unique(event21$Event))
+event21$Event <- factor(
+  event21$Event,
+  levels = unique(event21$Event)
+)
 
 
 p_event_gpr_btc <- ggplot(
   event21,
-  aes(Event, GPR_Coefficient, fill = Measure)
+  aes(
+    Event,
+    GPR_Coefficient,
+    fill = Measure
+  )
 ) +
-  geom_col(colour = "black") +
-  geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
-  scale_fill_grey(start = 0.85, end = 0.35) +
+  geom_col(
+    colour = "black"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    colour = "black"
+  ) +
+  scale_fill_grey(
+    start = 0.85,
+    end = 0.35
+  ) +
   labs(
     title = "GPR–Bitcoin Volatility Relationship During Identified Events",
     x = "Event",
@@ -583,24 +715,42 @@ p_event_gpr_btc <- ggplot(
     fill = "GPR measure"
   ) +
   theme_thesis +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
 
 
 event21_spill <- e8$event.results_21$regression
 
 event21_spill$Event <- factor(
   event21_spill$Event,
-  levels = event21_spill$Event
+  levels = unique(event21_spill$Event)
 )
 
 
 p_event_spill <- ggplot(
   event21_spill,
-  aes(Event, BTC_Coefficient, fill = Measure)
+  aes(
+    Event,
+    BTC_Coefficient,
+    fill = Measure
+  )
 ) +
-  geom_col(colour = "black") +
-  geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
-  scale_fill_grey(start = 0.85, end = 0.35) +
+  geom_col(
+    colour = "black"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    colour = "black"
+  ) +
+  scale_fill_grey(
+    start = 0.85,
+    end = 0.35
+  ) +
   labs(
     title = "Bitcoin–J303 Volatility Relationship During Identified Events",
     x = "Event",
@@ -613,7 +763,10 @@ p_event_spill <- ggplot(
 btc_std_resid <- data.frame(
   Date = data0$Date,
   Standardized_Residual = as.numeric(
-    residuals(master$btc.fit, standardize = TRUE)
+    residuals(
+      master$btc.fit,
+      standardize = TRUE
+    )
   )
 )
 
@@ -621,14 +774,30 @@ btc_std_resid <- data.frame(
 j303_std_resid <- data.frame(
   Date = data0$Date,
   Standardized_Residual = as.numeric(
-    residuals(master$j303.fit, standardize = TRUE)
+    residuals(
+      master$j303.fit,
+      standardize = TRUE
+    )
   )
 )
 
 
-p_btc_resid <- ggplot(btc_std_resid, aes(Date, Standardized_Residual)) +
-  geom_line(linewidth = 0.35, colour = "black") +
-  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+p_btc_resid <- ggplot(
+  btc_std_resid,
+  aes(
+    Date,
+    Standardized_Residual
+  )
+) +
+  geom_line(
+    linewidth = 0.35,
+    colour = "black"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    colour = "grey40"
+  ) +
   labs(
     title = "Bitcoin Standardized Residuals",
     x = "Date",
@@ -637,9 +806,22 @@ p_btc_resid <- ggplot(btc_std_resid, aes(Date, Standardized_Residual)) +
   theme_thesis
 
 
-p_j303_resid <- ggplot(j303_std_resid, aes(Date, Standardized_Residual)) +
-  geom_line(linewidth = 0.35, colour = "black") +
-  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+p_j303_resid <- ggplot(
+  j303_std_resid,
+  aes(
+    Date,
+    Standardized_Residual
+  )
+) +
+  geom_line(
+    linewidth = 0.35,
+    colour = "black"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    colour = "grey40"
+  ) +
   labs(
     title = "J303 Standardized Residuals",
     x = "Date",
@@ -650,16 +832,55 @@ p_j303_resid <- ggplot(j303_std_resid, aes(Date, Standardized_Residual)) +
 
 # 21. Save Figures
 
-save_plot(p_btc_return, "F01_Bitcoin_Returns")
-save_plot(p_j303_return, "F02_J303_Returns")
-save_plot(p_gpr, "F03_GPRD")
-save_plot(p_gpr_act, "F03a_GPRD_ACT")
-save_plot(p_gpr_threat, "F03b_GPRD_THREAT")
-save_plot(p_btc_vol, "F04_Bitcoin_Conditional_Volatility")
-save_plot(p_j303_vol, "F05_J303_Conditional_Volatility")
-save_plot(p_gpr_btc, "F06_GPR_Bitcoin_Volatility")
-save_plot(p_btc_j303, "F07_Bitcoin_J303_Volatility")
-save_plot(p_regime, "F08_GPR_Regimes")
+save_plot(
+  p_btc_return,
+  "F01_Bitcoin_Returns"
+)
+
+save_plot(
+  p_j303_return,
+  "F02_J303_Returns"
+)
+
+save_plot(
+  p_gpr,
+  "F03_GPRD"
+)
+
+save_plot(
+  p_gpr_act,
+  "F03a_GPRD_ACT"
+)
+
+save_plot(
+  p_gpr_threat,
+  "F03b_GPRD_THREAT"
+)
+
+save_plot(
+  p_btc_vol,
+  "F04_Bitcoin_Conditional_Volatility"
+)
+
+save_plot(
+  p_j303_vol,
+  "F05_J303_Conditional_Volatility"
+)
+
+save_plot(
+  p_gpr_btc,
+  "F06_GPR_Bitcoin_Volatility"
+)
+
+save_plot(
+  p_btc_j303,
+  "F07_Bitcoin_J303_Volatility"
+)
+
+save_plot(
+  p_regime,
+  "F08_GPR_Regimes"
+)
 
 save_plot(
   p_event_gpr_btc,
@@ -675,28 +896,57 @@ save_plot(
   height = 5
 )
 
-save_plot(p_btc_resid, "F11_Bitcoin_Standardized_Residuals")
-save_plot(p_j303_resid, "F12_J303_Standardized_Residuals")
+save_plot(
+  p_btc_resid,
+  "F11_Bitcoin_Standardized_Residuals"
+)
+
+save_plot(
+  p_j303_resid,
+  "F12_J303_Standardized_Residuals"
+)
 
 
 # 22. Results Summary
 
-cat("\nResults written to:\n", output_dir, "\n\n")
+cat(
+  "\nResults written to:\n",
+  output_dir,
+  "\n\n"
+)
 
 cat(
   "Core tables:",
-  length(list.files(core_table_dir, pattern = "\\.csv$")),
+  length(
+    list.files(
+      core_table_dir,
+      pattern = "\\.csv$"
+    )
+  ),
   "\n"
 )
 
 cat(
   "Appendix tables:",
-  length(list.files(appendix_table_dir, pattern = "\\.csv$")),
+  length(
+    list.files(
+      appendix_table_dir,
+      pattern = "\\.csv$"
+    )
+  ),
   "\n"
 )
 
 cat(
   "Figures:",
-  length(list.files(figure_dir, pattern = "\\.png$")),
+  length(
+    list.files(
+      figure_dir,
+      pattern = "\\.png$"
+    )
+  ),
   "\n"
 )
+
+
+

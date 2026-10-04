@@ -299,302 +299,225 @@ GPRD_THREAT_events_31 <- identify_gpr_events(
 )
 
 
-# 11. EVENT RESULTS
+# 11. COMBINE EVENT RESULTS
 
 format_event_results <- function(events, measure, smoothing) {
   
-  events$Measure <- measure
-  events$Smoothing <- smoothing
-  
-  events <- events[
-    ,
-    c(
-      "Measure",
-      "Smoothing",
-      "Peak_Date",
-      "Peak_GPR",
-      "Start_Date",
-      "End_Date",
-      "Start_GPR",
-      "End_GPR",
-      "Prominence"
+  events %>%
+    mutate(
+      Measure = measure,
+      Smoothing = smoothing
     )
-  ]
-  
-  return(events)
 }
 
-
 event_results <- bind_rows(
+  format_event_results(GPRD_events_11, "GPRD", 11),
+  format_event_results(GPRD_events_21, "GPRD", 21),
+  format_event_results(GPRD_events_31, "GPRD", 31),
   
-  format_event_results(
-    GPRD_events_11,
-    "GPRD",
-    11
-  ),
+  format_event_results(GPRD_ACT_events_11, "GPRD_ACT", 11),
+  format_event_results(GPRD_ACT_events_21, "GPRD_ACT", 21),
+  format_event_results(GPRD_ACT_events_31, "GPRD_ACT", 31),
   
-  format_event_results(
-    GPRD_events_21,
-    "GPRD",
-    21
-  ),
+  format_event_results(GPRD_THREAT_events_11, "GPRD_THREAT", 11),
+  format_event_results(GPRD_THREAT_events_21, "GPRD_THREAT", 21),
+  format_event_results(GPRD_THREAT_events_31, "GPRD_THREAT", 31)
+)
+
+
+# 12. NEWS SEARCH WINDOWS
+
+create_news_windows <- function(event_results, data) {
   
-  format_event_results(
-    GPRD_events_31,
-    "GPRD",
-    31
-  ),
-  
-  format_event_results(
-    GPRD_ACT_events_11,
-    "GPRD_ACT",
-    11
-  ),
-  
-  format_event_results(
-    GPRD_ACT_events_21,
-    "GPRD_ACT",
-    21
-  ),
-  
-  format_event_results(
-    GPRD_ACT_events_31,
-    "GPRD_ACT",
-    31
-  ),
-  
-  format_event_results(
-    GPRD_THREAT_events_11,
-    "GPRD_THREAT",
-    11
-  ),
-  
-  format_event_results(
-    GPRD_THREAT_events_21,
-    "GPRD_THREAT",
-    21
-  ),
-  
-  format_event_results(
-    GPRD_THREAT_events_31,
-    "GPRD_THREAT",
-    31
+  event_results$Peak_Row <- match(
+    event_results$Peak_Date,
+    data$Date
   )
-) %>%
+  
+  event_results$Half_Window <- floor(
+    event_results$Smoothing / 2
+  )
+  
+  event_results$News_Start_Row <- pmax(
+    1,
+    event_results$Peak_Row - event_results$Half_Window
+  )
+  
+  event_results$News_End_Row <- pmin(
+    nrow(data),
+    event_results$Peak_Row + event_results$Half_Window
+  )
+  
+  event_results$News_Start_Date <- data$Date[
+    event_results$News_Start_Row
+  ]
+  
+  event_results$News_End_Date <- data$Date[
+    event_results$News_End_Row
+  ]
+  
+  return(event_results)
+}
+
+event_results <- create_news_windows(
+  event_results,
+  data0
+)
+
+
+# 13. EVENT IDENTIFICATION TABLE
+
+event_results <- event_results %>%
   arrange(
     Measure,
     Smoothing,
     Peak_Date
-  )
+  ) %>%
+  group_by(
+    Measure,
+    Smoothing
+  ) %>%
+  mutate(
+    Event_ID = paste0(
+      Measure,
+      "_",
+      Smoothing,
+      "_",
+      row_number()
+    )
+  ) %>%
+  ungroup()
 
 
-# 12. HISTORICAL GPR EVENTS
+# EVENT NAMES
 
-historical_events <- data.frame(
+event_names <- c(
   
-  Event = c(
-    "Crimea",
-    "Israel-Gaza",
-    "Russia-Ukraine",
-    "Suruc",
-    "Paris",
-    "US-Iran",
-    "Aleppo-Syria",
-    "Israel-Syria",
-    "Qatar",
-    "North Korea",
-    "India-Pakistan",
-    "Saudi-US-Iran",
-    "US-Iran",
-    "Israel-Gaza",
-    "Russia-Ukraine",
-    "Russia-Ukraine",
-    "Bakhmut",
-    "Israel-Hamas",
-    "Russia-Ukraine",
-    "Israel-Iran",
-    "Iran"
-  ),
+  "2014-03-17" =
+    "2014 - Crimea referendum / Russia-Ukraine confrontation",
   
-  Start_Date = as.Date(c(
-    "2014-03-07",
-    "2014-08-19",
-    "2015-01-20",
-    "2015-07-20",
-    "2015-11-13",
-    "2016-01-12",
-    "2016-12-01",
-    "2017-01-13",
-    "2017-06-05",
-    "2017-07-04",
-    "2019-02-14",
-    "2019-09-14",
-    "2020-01-03",
-    "2021-05-10",
-    "2022-02-24",
-    "2022-07-14",
-    "2023-05-01",
-    "2023-10-07",
-    "2025-03-03",
-    "2025-06-13",
-    "2026-02-28"
-  )),
+  "2014-08-21" =
+    "2014 - Israel-Gaza conflict / Russia-Ukraine tensions",
   
-  End_Date = as.Date(c(
-    "2014-03-25",
-    "2014-08-26",
-    "2015-02-18",
-    "2015-07-27",
-    "2015-11-30",
-    "2016-01-13",
-    "2016-12-19",
-    "2017-01-14",
-    "2017-06-29",
-    "2017-07-28",
-    "2019-03-15",
-    "2019-10-08",
-    "2020-01-13",
-    "2021-05-21",
-    "2022-03-16",
-    "2022-07-17",
-    "2023-05-31",
-    "2023-11-21",
-    "2025-03-17",
-    "2025-06-30",
-    "2026-05-13"
-  ))
+  "2015-01-29" =
+    "2015 - Russia-Ukraine conflict / Debaltseve fighting",
+  
+  "2015-07-22" =
+    "2015 - Suruç bombing / Turkey-PKK escalation",
+  
+  "2015-11-23" =
+    "2015 - Paris attacks / European anti-terror response",
+  
+  "2015-11-30" =
+    "2015 - Russia-Turkey confrontation after Russian jet downing",
+  
+  "2015-12-07" =
+    "2015 - Russia-Turkey tensions over Syria",
+  
+  "2016-01-12" =
+    "2016 - Istanbul bombing / Islamic State",
+  
+  "2016-12-13" =
+    "2016 - Battle of Aleppo / evacuation crisis",
+  
+  "2017-01-13" =
+    "2017 - Israel-Syria military confrontation near Damascus",
+  
+  "2017-06-07" =
+    "2017 - Qatar diplomatic crisis / Tehran terrorist attacks",
+  
+  "2017-07-25" =
+    "2017 - North Korea missile/nuclear threat",
+  
+  "2019-03-08" =
+    "2019 - India-Pakistan tensions / Jammu attack / North Korea-US tensions",
+  
+  "2019-10-02" =
+    "2019 - Turkey-Syria cross-border offensive threat / Saudi-Iran tensions",
+  
+  "2020-01-06" =
+    "2020 - US-Iran confrontation after Soleimani killing",
+  
+  "2020-01-09" =
+    "2020 - Iranian missile strikes on US forces / Ukrainian airliner downing",
+  
+  "2021-05-06" =
+    "2021 - Sheikh Jarrah eviction dispute / Jerusalem clashes",
+  
+  "2021-05-20" =
+    "2021 - Israel-Gaza fighting / ceasefire negotiations",
+  
+  "2021-05-21" =
+    "2021 - Israel-Gaza ceasefire",
+  
+  "2021-06-01" =
+    "2021 - Gaza ceasefire and reconstruction aftermath",
+  
+  "2022-03-01" =
+    "2022 - Russia's invasion of Ukraine",
+  
+  "2022-03-08" =
+    "2022 - Russia's invasion of Ukraine / humanitarian corridors",
+  
+  "2022-07-15" =
+    "2022 - Vinnytsia missile strike / Russia-Ukraine war",
+  
+  "2023-05-24" =
+    "2023 - Belgorod cross-border incursion / Russia-Ukraine war",
+  
+  "2023-10-27" =
+    "2023 - Israel-Hamas war / Israeli ground operations in Gaza",
+  
+  "2025-03-06" =
+    "2025 - US suspension of military and intelligence support to Ukraine",
+  
+  "2025-03-13" =
+    "2025 - Russia-Ukraine ceasefire negotiations / Putin response",
+  
+  "2025-06-05" =
+    "2025 - Gaza humanitarian crisis / aid disruption",
+  
+  "2025-06-20" =
+    "2025 - Israel-Iran war / US decision on intervention",
+  
+  "2025-06-24" =
+    "2025 - Israel-Iran ceasefire",
+  
+  "2026-03-10" =
+    "2026 - Iran war / Strait of Hormuz and energy disruption",
+  
+  "2026-03-17" =
+    "2026 - Iran war / Strait of Hormuz and allied response",
+  
+  "2026-03-24" =
+    "2026 - US-Iran negotiations / Strait of Hormuz",
+  
+  "2026-03-31" =
+    "2026 - Iran war / Gulf shipping and Strait of Hormuz"
 )
 
 
-# 13. MATCH GPR EVENTS TO HISTORICAL EVENTS
-
-match_historical_events <- function(event_results, historical_events) {
-  
-  matched_events <- lapply(seq_len(nrow(event_results)), function(i) {
-    
-    event <- event_results[i, ]
-    
-    # Allow a buffer around the historical event
-    # corresponding to the centred smoothing window.
-    
-    buffer_days <- floor(
-      event$Smoothing / 2
+event_results <- event_results %>%
+  mutate(
+    Event_Name = unname(
+      event_names[as.character(Peak_Date)]
     )
-    
-    historical_events_buffered <- historical_events
-    
-    historical_events_buffered$Start_Date <- 
-      historical_events_buffered$Start_Date -
-      buffer_days
-    
-    historical_events_buffered$End_Date <- 
-      historical_events_buffered$End_Date +
-      buffer_days
-    
-    historical_events_buffered$Overlap_Days <- pmax(
-      0,
-      as.numeric(
-        pmin(
-          event$End_Date,
-          historical_events_buffered$End_Date
-        ) -
-          pmax(
-            event$Start_Date,
-            historical_events_buffered$Start_Date
-          )
-      ) + 1
-    )
-    
-    overlap <- historical_events_buffered[
-      historical_events_buffered$Overlap_Days > 0,
-    ]
-    
-    measure_code <- case_when(
-      event$Measure == "GPRD" ~ "G",
-      event$Measure == "GPRD_ACT" ~ "A",
-      event$Measure == "GPRD_THREAT" ~ "T",
-      TRUE ~ NA_character_
-    )
-    
-    event_code <- paste0(
-      measure_code,
-      event$Smoothing
-    )
-    
-    if (nrow(overlap) == 0) {
-      
-      data.frame(
-        Event = paste0("Unknown ", event_code),
-        Start_Date = event$Start_Date,
-        End_Date = event$End_Date,
-        Peak_Date = event$Peak_Date,
-        Measure = event$Measure,
-        Smoothing = event$Smoothing,
-        Peak_GPR = event$Peak_GPR,
-        Prominence = event$Prominence
-      )
-      
-    } else {
-      
-      max_overlap <- max(
-        overlap$Overlap_Days
-      )
-      
-      selected_event <- overlap[
-        overlap$Overlap_Days == max_overlap,
-      ][1, ]
-      
-      data.frame(
-        Event = paste0(
-          selected_event$Event,
-          " ",
-          event_code
-        ),
-        Start_Date = event$Start_Date,
-        End_Date = event$End_Date,
-        Peak_Date = event$Peak_Date,
-        Measure = event$Measure,
-        Smoothing = event$Smoothing,
-        Peak_GPR = event$Peak_GPR,
-        Prominence = event$Prominence
-      )
-    }
-  })
-  
-  matched_events <- as.data.frame(
-    do.call(rbind, matched_events)
   )
-  
-  event_counts <- table(
-    matched_events$Event
-  )
-  
-  repeated_events <- names(
-    event_counts[
-      event_counts > 1
-    ]
-  )
-  
-  for (event_name in repeated_events) {
-    
-    rows <- which(
-      matched_events$Event == event_name
-    )
-    
-    matched_events$Event[rows] <- paste0(
-      event_name,
-      "-",
-      seq_along(rows)
-    )
-  }
-  
-  return(matched_events)
-}
 
 
-event_matches <- match_historical_events(
-  event_results,
-  historical_events
-)
+event_dates <- event_results %>%
+  select(
+    Event_ID,
+    Event_Name,
+    Measure,
+    Smoothing,
+    Peak_Date,
+    News_Start_Date,
+    News_End_Date,
+    everything()
+  )
+
+event_dates$Event_Name
+
 
 

@@ -241,6 +241,48 @@ incremental.summary <- data.frame(
 incremental.summary
 
 
+# 9.1 Partial F-test using Newey-West covariance
+
+partial.F.dynamic <- waldtest(
+  restricted.dynamic,
+  full.dynamic,
+  vcov = NeweyWest(
+    full.dynamic,
+    prewhite = FALSE
+  )
+)
+
+partial.F.dynamic
+
+
+# Add partial F-test results to incremental summary
+
+incremental.summary <- data.frame(
+  Restricted_R2 = round(
+    r2.restricted,
+    4
+  ),
+  Full_R2 = round(
+    r2.full,
+    4
+  ),
+  Delta_R2 = round(
+    delta.r2,
+    4
+  ),
+  Partial_F_Statistic = round(
+    partial.F.dynamic$F[2],
+    4
+  ),
+  Partial_F_P_Value = signif(
+    partial.F.dynamic$`Pr(>F)`[2],
+    4
+  )
+)
+
+incremental.summary
+
+
 # 10. Dynamic model serial correlation
 
 bg.dynamic.2 <- bgtest(
@@ -539,6 +581,8 @@ dynamic.serial.summary <- data.frame(
 )
 
 dynamic.serial.summary
+
+
 
 
 

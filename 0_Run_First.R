@@ -179,7 +179,7 @@ identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
     which(!is.na(gpr_ma))
   )
   
-  episode.table <- data.frame()
+  event.table <- data.frame()
   
   for (i in maxima) {
     
@@ -210,8 +210,8 @@ identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
     prominence <- peak.gpr -
       max(start.gpr, end.gpr)
     
-    episode.table <- rbind(
-      episode.table,
+    event.table <- rbind(
+      event.table,
       data.frame(
         Peak_Date = data$Date[i],
         Peak_GPR = peak.gpr,
@@ -224,19 +224,19 @@ identify_gpr_events <- function(data, gpr_column, ma_days = 21) {
     )
   }
   
-  episode.table <- episode.table[
-    order(-episode.table$Prominence),
+  event.table <- event.table[
+    order(-event.table$Prominence),
   ]
   
-  episode.table <- episode.table[
-    seq_len(min(5, nrow(episode.table))),
+  event.table <- event.table[
+    seq_len(min(5, nrow(event.table))),
   ]
   
-  episode.table <- episode.table[
-    order(episode.table$Start_Date),
+  event.table <- event.table[
+    order(event.table$Start_Date),
   ]
   
-  return(episode.table)
+  return(event.table)
 }
 
 
@@ -311,23 +311,77 @@ format_event_results <- function(events, measure, smoothing) {
 }
 
 event_results <- bind_rows(
-  format_event_results(GPRD_events_11, "GPRD", 11),
-  format_event_results(GPRD_events_21, "GPRD", 21),
-  format_event_results(GPRD_events_31, "GPRD", 31),
   
-  format_event_results(GPRD_ACT_events_11, "GPRD_ACT", 11),
-  format_event_results(GPRD_ACT_events_21, "GPRD_ACT", 21),
-  format_event_results(GPRD_ACT_events_31, "GPRD_ACT", 31),
+  format_event_results(
+    GPRD_events_11,
+    "GPRD",
+    11
+  ),
   
-  format_event_results(GPRD_THREAT_events_11, "GPRD_THREAT", 11),
-  format_event_results(GPRD_THREAT_events_21, "GPRD_THREAT", 21),
-  format_event_results(GPRD_THREAT_events_31, "GPRD_THREAT", 31)
+  format_event_results(
+    GPRD_events_21,
+    "GPRD",
+    21
+  ),
+  
+  format_event_results(
+    GPRD_events_31,
+    "GPRD",
+    31
+  ),
+  
+  format_event_results(
+    GPRD_ACT_events_11,
+    "GPRD_ACT",
+    11
+  ),
+  
+  format_event_results(
+    GPRD_ACT_events_21,
+    "GPRD_ACT",
+    21
+  ),
+  
+  format_event_results(
+    GPRD_ACT_events_31,
+    "GPRD_ACT",
+    31
+  ),
+  
+  format_event_results(
+    GPRD_THREAT_events_11,
+    "GPRD_THREAT",
+    11
+  ),
+  
+  format_event_results(
+    GPRD_THREAT_events_21,
+    "GPRD_THREAT",
+    21
+  ),
+  
+  format_event_results(
+    GPRD_THREAT_events_31,
+    "GPRD_THREAT",
+    31
+  )
 )
 
 
-# 12. NEWS SEARCH WINDOWS
+# 12. EVENT ANALYSIS WINDOWS
 
-create_news_windows <- function(event_results, data) {
+create_event_windows <- function(event_results, data) {
+  
+  event_results$Start_Row <- match(
+    event_results$Start_Date,
+    data$Date
+  )
+  
+  event_results$End_Row <- match(
+    event_results$End_Date,
+    data$Date
+  )
+
   
   event_results$Peak_Row <- match(
     event_results$Peak_Date,
@@ -340,12 +394,14 @@ create_news_windows <- function(event_results, data) {
   
   event_results$News_Start_Row <- pmax(
     1,
-    event_results$Peak_Row - event_results$Half_Window
+    event_results$Peak_Row -
+      event_results$Half_Window
   )
   
   event_results$News_End_Row <- pmin(
     nrow(data),
-    event_results$Peak_Row + event_results$Half_Window
+    event_results$Peak_Row +
+      event_results$Half_Window
   )
   
   event_results$News_Start_Date <- data$Date[
@@ -359,13 +415,122 @@ create_news_windows <- function(event_results, data) {
   return(event_results)
 }
 
-event_results <- create_news_windows(
+event_results <- create_event_windows(
+  event_results,
+  data0
+)
+
+event_results$News_Observations <-
+  event_results$News_End_Row -
+  event_results$News_Start_Row +
+  1
+
+if (
+  any(
+    event_results$News_Observations !=
+    event_results$Smoothing
+  )
+) {
+  
+  stop(
+    "One or more fixed event-analysis windows do not contain the required number of trading observations."
+  )
+}
+
+
+# 13. TOP THREE RAW GPR PEAKS WITHIN EACH FULL SMOOTHED EVENT PERIOD
+
+get_top_raw_peaks <- function(event_results, data) {
+  
+  top_raw_results <- lapply(
+    seq_len(nrow(event_results)),
+    function(i) {
+      
+      gpr_column <- event_results$Measure[i]
+      
+      start_row <- event_results$Start_Row[i]
+      end_row <- event_results$End_Row[i]
+      
+      raw_window <- data.frame(
+        Date = data$Date[
+          start_row:end_row
+        ],
+        Raw_GPR = data[[gpr_column]][
+          start_row:end_row
+        ]
+      )
+      
+      raw_window <- raw_window %>%
+        filter(
+          !is.na(Raw_GPR)
+        ) %>%
+        arrange(
+          desc(Raw_GPR),
+          Date
+        )
+      
+      if (nrow(raw_window) < 3) {
+        
+        stop(
+          "One or more smoothed event periods contain fewer than three raw GPR observations."
+        )
+      }
+      
+      data.frame(
+        Top_Raw_Date_1 = raw_window$Date[1],
+        Top_Raw_GPR_1 = raw_window$Raw_GPR[1],
+        
+        Top_Raw_Date_2 = raw_window$Date[2],
+        Top_Raw_GPR_2 = raw_window$Raw_GPR[2],
+        
+        Top_Raw_Date_3 = raw_window$Date[3],
+        Top_Raw_GPR_3 = raw_window$Raw_GPR[3]
+      )
+      
+    }
+  )
+  
+  return(
+    bind_rows(top_raw_results)
+  )
+}
+
+
+top_raw_peaks <- get_top_raw_peaks(
   event_results,
   data0
 )
 
 
-# 13. EVENT IDENTIFICATION TABLE
+event_results <- bind_cols(
+  event_results,
+  top_raw_peaks
+)
+
+if (
+  any(
+    event_results$Top_Raw_Date_1 <
+    event_results$Start_Date |
+    event_results$Top_Raw_Date_1 >
+    event_results$End_Date |
+    event_results$Top_Raw_Date_2 <
+    event_results$Start_Date |
+    event_results$Top_Raw_Date_2 >
+    event_results$End_Date |
+    event_results$Top_Raw_Date_3 <
+    event_results$Start_Date |
+    event_results$Top_Raw_Date_3 >
+    event_results$End_Date
+  )
+) {
+  
+  stop(
+    "One or more top raw GPR peaks fall outside the full smoothed event period."
+  )
+}
+
+
+# 14. EVENT IDENTIFICATION TABLE
 
 event_results <- event_results %>%
   arrange(
@@ -389,377 +554,267 @@ event_results <- event_results %>%
   ungroup()
 
 
-# EVENT NAMES
+# 15. IMPORT EXCEL EVENT AUDIT AND NAME EVENTS
 
-event_names <- c(
-  
-  "2014-03-17" =
-    "2014 - Crimea referendum / Russia-Ukraine confrontation",
-  
-  "2014-08-21" =
-    "2014 - Israel-Gaza conflict / Russia-Ukraine tensions",
-  
-  "2015-01-29" =
-    "2015 - Russia-Ukraine conflict / Debaltseve fighting",
-  
-  "2015-07-22" =
-    "2015 - Suruç bombing / Turkey-PKK escalation",
-  
-  "2015-11-23" =
-    "2015 - Paris attacks / European anti-terror response",
-  
-  "2015-11-30" =
-    "2015 - Russia-Turkey confrontation after Russian jet downing",
-  
-  "2015-12-07" =
-    "2015 - Russia-Turkey tensions over Syria",
-  
-  "2016-01-12" =
-    "2016 - Istanbul bombing / Islamic State",
-  
-  "2016-12-13" =
-    "2016 - Battle of Aleppo / evacuation crisis",
-  
-  "2017-01-13" =
-    "2017 - Israel-Syria military confrontation near Damascus",
-  
-  "2017-06-07" =
-    "2017 - Qatar diplomatic crisis / Tehran terrorist attacks",
-  
-  "2017-07-25" =
-    "2017 - North Korea missile/nuclear threat",
-  
-  "2019-03-08" =
-    "2019 - India-Pakistan tensions / Jammu attack / North Korea-US tensions",
-  
-  "2019-10-02" =
-    "2019 - Turkey-Syria cross-border offensive threat / Saudi-Iran tensions",
-  
-  "2020-01-06" =
-    "2020 - US-Iran confrontation after Soleimani killing",
-  
-  "2020-01-09" =
-    "2020 - Iranian missile strikes on US forces / Ukrainian airliner downing",
-  
-  "2021-05-06" =
-    "2021 - Sheikh Jarrah eviction dispute / Jerusalem clashes",
-  
-  "2021-05-20" =
-    "2021 - Israel-Gaza fighting / ceasefire negotiations",
-  
-  "2021-05-21" =
-    "2021 - Israel-Gaza ceasefire",
-  
-  "2021-06-01" =
-    "2021 - Gaza ceasefire and reconstruction aftermath",
-  
-  "2022-03-01" =
-    "2022 - Russia's invasion of Ukraine",
-  
-  "2022-03-08" =
-    "2022 - Russia's invasion of Ukraine / humanitarian corridors",
-  
-  "2022-07-15" =
-    "2022 - Vinnytsia missile strike / Russia-Ukraine war",
-  
-  "2023-05-24" =
-    "2023 - Belgorod cross-border incursion / Russia-Ukraine war",
-  
-  "2023-10-27" =
-    "2023 - Israel-Hamas war / Israeli ground operations in Gaza",
-  
-  "2025-03-06" =
-    "2025 - US suspension of military and intelligence support to Ukraine",
-  
-  "2025-03-13" =
-    "2025 - Russia-Ukraine ceasefire negotiations / Putin response",
-  
-  "2025-06-05" =
-    "2025 - Gaza humanitarian crisis / aid disruption",
-  
-  "2025-06-20" =
-    "2025 - Israel-Iran war / US decision on intervention",
-  
-  "2025-06-24" =
-    "2025 - Israel-Iran ceasefire",
-  
-  "2026-03-10" =
-    "2026 - Iran war / Strait of Hormuz and energy disruption",
-  
-  "2026-03-17" =
-    "2026 - Iran war / Strait of Hormuz and allied response",
-  
-  "2026-03-24" =
-    "2026 - US-Iran negotiations / Strait of Hormuz",
-  
-  "2026-03-31" =
-    "2026 - Iran war / Gulf shipping and Strait of Hormuz"
-)
-
-
-event_results <- event_results %>%
-  mutate(
-    Event_Name = unname(
-      event_names[as.character(Peak_Date)]
-    )
+event_audit <- read_excel(
+  "Thesis_GPR_Event_Audit_FINAL_VERIFIED.xlsx",
+  sheet = "45 Event Audit"
+) %>%
+  select(
+    Event_ID,
+    Event_1,
+    Event_2,
+    Event_3
+  ) %>%
+  rename(
+    Audit_Event_1 = Event_1,
+    Audit_Event_2 = Event_2,
+    Audit_Event_3 = Event_3
   )
 
 
-# 14. OVERLAPPING EVENT WINDOWS
+# Import the E01-E36 codes assigned to the
+# three raw peaks in the 135 Raw Peak Audit.
 
-# Overlap is used to identify candidate matches across smoothing specifications.
-# The final Episode assignment is manually validated below.
+raw_peak_audit <- read_excel(
+  "Thesis_GPR_Event_Audit_FINAL_VERIFIED.xlsx",
+  sheet = "135 Raw Peak Audit"
+) %>%
+  select(
+    Event_ID,
+    Raw_Rank,
+    Underlying_Event_Code
+  ) %>%
+  arrange(
+    Event_ID,
+    Raw_Rank
+  )
 
-match_event_candidates <- function(x) {
+raw_peak_counts <- raw_peak_audit %>%
+  count(Event_ID)
+
+if (
+  any(
+    raw_peak_counts$n != 3
+  )
+) {
   
-  x <- x[
-    order(
-      x$Peak_Row
-    ),
-  ]
-  
-  x$Candidate_Episode <- NA_integer_
-  
-  episode <- 0
-  
-  for (i in seq_len(nrow(x))) {
-    
-    if (!is.na(x$Candidate_Episode[i])) {
-      next
-    }
-    
-    episode <- episode + 1
-    
-    x$Candidate_Episode[i] <- episode
-    
-    repeat {
-      
-      current_rows <- which(
-        x$Candidate_Episode == episode
-      )
-      
-      matched_rows <- which(
-        sapply(
-          seq_len(nrow(x)),
-          function(j) {
-            
-            if (!is.na(x$Candidate_Episode[j])) {
-              return(FALSE)
-            }
-            
-            any(
-              sapply(
-                current_rows,
-                function(k) {
-                  
-                  x$Smoothing[j] !=
-                    x$Smoothing[k] &&
-                    x$News_Start_Row[j] <=
-                    x$News_End_Row[k] &&
-                    x$News_Start_Row[k] <=
-                    x$News_End_Row[j]
-                  
-                }
-              )
-            )
-            
-          }
-        )
-      )
-      
-      if (length(matched_rows) == 0) {
-        break
-      }
-      
-      x$Candidate_Episode[matched_rows] <-
-        episode
-      
-    }
-    
-  }
-  
-  x$Candidate_Episode <- LETTERS[
-    x$Candidate_Episode
-  ]
-  
-  return(x)
+  stop(
+    "One or more Event_IDs do not have exactly three audited raw peaks."
+  )
 }
 
-
-candidate_event_results <- do.call(
-  rbind,
-  lapply(
-    split(
-      event_results,
-      event_results$Measure
+raw_peak_codes <- raw_peak_audit %>%
+  group_by(
+    Event_ID
+  ) %>%
+  summarise(
+    Event_Codes = paste(
+      unique(Underlying_Event_Code),
+      collapse = "; "
     ),
-    match_event_candidates
+    .groups = "drop"
   )
-)
-
-rownames(candidate_event_results) <- NULL
-
-
-# 15. MANUALLY VALIDATED EVENT EPISODES
-
-manual_episode_map <- bind_rows(
-  
-  data.frame(
-    Measure = "GPRD",
-    Peak_Date = as.Date(c(
-      "2015-07-22",
-      "2015-11-23",
-      "2015-11-30",
-      "2017-06-07",
-      "2019-10-02",
-      "2021-05-06",
-      "2021-05-20",
-      "2021-06-01",
-      "2023-05-24",
-      "2023-10-27",
-      "2025-03-13",
-      "2025-06-05",
-      "2026-03-10",
-      "2026-03-17",
-      "2026-03-24"
-    )),
-    Episode = c(
-      "A",
-      "B",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-      "I",
-      "J",
-      "K",
-      "L",
-      "M",
-      "M",
-      "M"
-    )
-  ),
-  
-  data.frame(
-    Measure = "GPRD_ACT",
-    Peak_Date = as.Date(c(
-      "2015-01-29",
-      "2015-11-23",
-      "2015-11-30",
-      "2015-12-07",
-      "2016-12-13",
-      "2017-01-13",
-      "2017-06-07",
-      "2019-03-08",
-      "2020-01-06",
-      "2021-05-20",
-      "2025-03-06",
-      "2025-03-13",
-      "2025-06-24",
-      "2026-03-17",
-      "2026-03-24"
-    )),
-    Episode = c(
-      "A",
-      "B",
-      "C",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-      "I",
-      "J",
-      "J",
-      "K",
-      "L",
-      "L"
-    )
-  ),
-  
-  data.frame(
-    Measure = "GPRD_THREAT",
-    Peak_Date = as.Date(c(
-      "2014-03-17",
-      "2014-08-21",
-      "2015-11-30",
-      "2016-01-12",
-      "2017-07-25",
-      "2019-10-02",
-      "2020-01-09",
-      "2021-05-21",
-      "2022-03-01",
-      "2022-03-08",
-      "2022-07-15",
-      "2025-06-05",
-      "2025-06-20",
-      "2026-03-24",
-      "2026-03-31"
-    )),
-    Episode = c(
-      "A",
-      "B",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-      "I",
-      "I",
-      "J",
-      "K",
-      "L",
-      "M",
-      "M"
-    )
-  )
-)
-
 
 event_results <- event_results %>%
   left_join(
-    manual_episode_map,
-    by = c(
-      "Measure",
-      "Peak_Date"
+    event_audit,
+    by = "Event_ID"
+  ) %>%
+  left_join(
+    raw_peak_codes,
+    by = "Event_ID"
+  ) %>%
+  mutate(
+    Event_Name = apply(
+      cbind(
+        Audit_Event_1,
+        Audit_Event_2,
+        Audit_Event_3
+      ),
+      1,
+      function(x) {
+        
+        x <- x[
+          !is.na(x) &
+            x != ""
+        ]
+        
+        paste(
+          unique(x),
+          collapse = "; "
+        )
+      }
     )
   )
 
 
-if (any(is.na(event_results$Episode))) {
+# Check that every R-generated event has
+# a corresponding Excel audit entry.
+
+if (
+  any(
+    is.na(event_results$Event_Name) |
+    event_results$Event_Name == ""
+  )
+) {
   
   stop(
-    "One or more events do not have a manually validated Episode assignment."
+    "One or more R-generated events do not have a verified event name in the Excel audit."
+  )
+}
+
+if (
+  any(
+    is.na(event_results$Event_Codes) |
+    event_results$Event_Codes == ""
+  )
+) {
+  
+  stop(
+    "One or more R-generated events do not have verified E01-E36 event codes."
   )
 }
 
 
-# 16. FINAL EVENT TABLE
+# 16. E-CODE ROBUSTNESS OVERLAP
+
+event_code_data <- event_results %>%
+  mutate(
+    Event_Group = paste(
+      Measure,
+      Smoothing,
+      sep = "_"
+    )
+  ) %>%
+  select(
+    Event_Group,
+    Event_Codes
+  )
+
+get_event_codes <- function(x) {
+  
+  x <- unlist(
+    strsplit(
+      x,
+      ";"
+    )
+  )
+  
+  x <- trimws(x)
+  
+  x <- x[
+    !is.na(x) &
+      x != ""
+  ]
+  
+  return(
+    unique(x)
+  )
+}
+
+event_code_sets <- split(
+  event_code_data$Event_Codes,
+  event_code_data$Event_Group
+)
+
+event_code_sets <- lapply(
+  event_code_sets,
+  function(x) {
+    
+    codes <- unlist(
+      lapply(
+        x,
+        get_event_codes
+      )
+    )
+    
+    sort(
+      unique(codes)
+    )
+  }
+)
+
+event_groups <- sort(
+  names(event_code_sets)
+)
+
+event_overlap <- do.call(
+  rbind,
+  lapply(
+    seq_len(
+      length(event_groups) - 1
+    ),
+    function(i) {
+      
+      do.call(
+        rbind,
+        lapply(
+          (i + 1):length(event_groups),
+          function(j) {
+            
+            group_1 <- event_groups[i]
+            group_2 <- event_groups[j]
+            
+            shared_codes <- sort(
+              intersect(
+                event_code_sets[[group_1]],
+                event_code_sets[[group_2]]
+              )
+            )
+            
+            data.frame(
+              Group_1 = group_1,
+              Group_2 = group_2,
+              Shared_Event_Codes = if (
+                length(shared_codes) == 0
+              ) {
+                "None"
+              } else {
+                paste(
+                  shared_codes,
+                  collapse = "; "
+                )
+              }
+            )
+          }
+        )
+      )
+    }
+  )
+)
+
+
+event_overlap
+
+
+# 17. FINAL EVENT TABLE
 
 event_dates <- event_results %>%
   arrange(
     Measure,
-    Episode,
     Smoothing,
     Peak_Date
   ) %>%
   select(
     Event_ID,
-    Episode,
     Event_Name,
+    Event_Codes,
     Measure,
     Smoothing,
     Peak_Date,
+    Start_Date,
+    End_Date,
+    Top_Raw_Date_1,
+    Top_Raw_GPR_1,
+    Top_Raw_Date_2,
+    Top_Raw_GPR_2,
+    Top_Raw_Date_3,
+    Top_Raw_GPR_3,
     News_Start_Date,
     News_End_Date,
     everything()
   )
-
-event_dates$Event_Name
 
 
 

@@ -555,9 +555,3 @@ event.identification.robustness.shared
 
 
 
-
-
-event.stability
-
-
-

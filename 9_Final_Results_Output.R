@@ -925,39 +925,34 @@ write_table(
 )
 
 
-# 19. Peak Date Source Audit
+# 19. GPR Event Source Audit
 
-peak_date_source_audit <- readxl::read_excel(
+raw_peak_audit <- readxl::read_excel(
   file.path(
     script_dir,
-    "Thesis_GPR_Event_Audit_FINAL_VERIFIED.xlsx"
+    "GPR_Events.xlsx"
   ),
-  sheet = "Peak Data Sources"
+  sheet = "135 Raw Peak Audit"
 )
 
-if (
-  "Peak_Date" %in% names(peak_date_source_audit)
-) {
-  
-  peak_date_duplicates <- peak_date_source_audit %>%
-    count(
-      Peak_Date
-    ) %>%
-    filter(
-      n > 1
-    )
-  
-  if (nrow(peak_date_duplicates) > 0) {
-    stop(
-      "Peak Data Sources contains duplicate peak dates."
-    )
-  }
-  
-}
+write_table(
+  raw_peak_audit,
+  "T36_GPR_Raw_Peak_Audit",
+  appendix = TRUE
+)
+
+
+event_sources <- readxl::read_excel(
+  file.path(
+    script_dir,
+    "GPR_Events.xlsx"
+  ),
+  sheet = "Sources"
+)
 
 write_table(
-  peak_date_source_audit,
-  "T36_GPR_Peak_Date_Source_Audit",
+  event_sources,
+  "T36b_GPR_Event_Sources",
   appendix = TRUE
 )
 

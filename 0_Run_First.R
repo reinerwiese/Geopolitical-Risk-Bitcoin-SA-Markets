@@ -557,244 +557,32 @@ event_results <- event_results %>%
 # 15. IMPORT EXCEL EVENT AUDIT AND NAME EVENTS
 
 event_audit <- read_excel(
-  "Thesis_GPR_Event_Audit_FINAL_VERIFIED.xlsx",
-  sheet = "45 Event Audit"
+  "GPR_Events.xlsx",
+  sheet = "45 events"
 ) %>%
   select(
     Event_ID,
-    Other_Event_IDs_Within_Window,
-    Shared_Highest_Raw_Day_Event_IDs,
-    Episode_Link_Status,
-    Other_Selected_Raw_Peak_IDs_Within_Window,
-    Additional_Event_Codes,
-    Additional_Event_Names,
-    Combined_Event_Codes,
-    Combined_Event_Names
+    Event_Codes = `Total Source_IDs`,
+    Event_Name = `event names`
   )
 
 
-raw_peak_audit <- read_excel(
-  "Thesis_GPR_Event_Audit_FINAL_VERIFIED.xlsx",
-  sheet = "135 Raw Peak Audit"
-) %>%
-  select(
-    Event_ID,
-    Raw_Rank,
-    Underlying_Event_Code,
-    Underlying_Event
-  ) %>%
-  arrange(
-    Event_ID,
-    Raw_Rank
-  )
-
-
-raw_peak_counts <- raw_peak_audit %>%
-  count(Event_ID)
-
-if (
-  any(
-    raw_peak_counts$n != 3
-  )
-) {
-  
-  stop(
-    "One or more Event_IDs do not have exactly three audited raw peaks."
-  )
-}
-
-raw_peak_events <- raw_peak_audit %>%
-  group_by(
-    Event_ID
-  ) %>%
-  summarise(
-    
-    Top3_Event_Codes = paste(
-      Underlying_Event_Code,
-      collapse = "; "
-    ),
-    
-    Top3_Event_Name = paste(
-      unique(Underlying_Event),
-      collapse = "; "
-    ),
-    
-    Event_Code_1 = Underlying_Event_Code[Raw_Rank == 1][1],
-    Event_Code_2 = Underlying_Event_Code[Raw_Rank == 2][1],
-    Event_Code_3 = Underlying_Event_Code[Raw_Rank == 3][1],
-    
-    Event_Name_1 = Underlying_Event[Raw_Rank == 1][1],
-    Event_Name_2 = Underlying_Event[Raw_Rank == 2][1],
-    Event_Name_3 = Underlying_Event[Raw_Rank == 3][1],
-    
-    .groups = "drop"
-  )
-
-
-event_results <- event_results %>%
-  left_join(
-    raw_peak_events,
-    by = "Event_ID"
-  ) %>%
-  left_join(
-    event_audit,
-    by = "Event_ID"
-  )
+event_audit <- event_audit[
+  match(
+    event_results$Event_ID,
+    event_audit$Event_ID
+  ),
+]
 
 
 event_results <- event_results %>%
   mutate(
-    Event_Codes = Combined_Event_Codes,
-    Event_Name = Combined_Event_Names
+    Event_Codes = event_audit$Event_Codes,
+    Event_Name = event_audit$Event_Name
   )
 
 
-if (
-  any(
-    is.na(event_results$Event_Name) |
-    event_results$Event_Name == ""
-  )
-) {
-  
-  stop(
-    "One or more R-generated events do not have a verified event name in the Excel audit."
-  )
-}
-
-if (
-  any(
-    is.na(event_results$Event_Codes) |
-    event_results$Event_Codes == ""
-  )
-) {
-  
-  stop(
-    "One or more R-generated events do not have verified E01-E36 event codes."
-  )
-}
-
-
-get_event_codes <- function(x) {
-  
-  if (
-    length(x) == 0 |
-    is.na(x) |
-    trimws(x) == "" |
-    trimws(x) == "None"
-  ) {
-    
-    return(
-      character(0)
-    )
-  }
-  
-  x <- unlist(
-    strsplit(
-      x,
-      ";"
-    )
-  )
-  
-  x <- trimws(x)
-  
-  x <- x[
-    !is.na(x) &
-      x != "" &
-      x != "None"
-  ]
-  
-  return(
-    unique(x)
-  )
-}
-
-
-combined_event_check <- mapply(
-  function(
-    top3,
-    combined
-  ) {
-    
-    all(
-      get_event_codes(top3) %in%
-        get_event_codes(combined)
-    )
-    
-  },
-  event_results$Top3_Event_Codes,
-  event_results$Event_Codes
-)
-
-if (
-  any(
-    !combined_event_check
-  )
-) {
-  
-  stop(
-    "One or more original top-three E-codes are missing from the combined event list."
-  )
-}
-
-
-additional_event_check <- mapply(
-  function(
-    additional,
-    combined
-  ) {
-    
-    additional_codes <- get_event_codes(
-      additional
-    )
-    
-    combined_codes <- get_event_codes(
-      combined
-    )
-    
-    all(
-      additional_codes %in%
-        combined_codes
-    )
-    
-  },
-  event_results$Additional_Event_Codes,
-  event_results$Event_Codes
-)
-
-if (
-  any(
-    !additional_event_check
-  )
-) {
-  
-  stop(
-    "One or more additional E-codes are missing from the combined event list."
-  )
-}
-
-
-ecode_name_check <- raw_peak_audit %>%
-  distinct(
-    Underlying_Event_Code,
-    Underlying_Event
-  ) %>%
-  count(
-    Underlying_Event_Code
-  )
-
-if (
-  any(
-    ecode_name_check$n != 1
-  )
-) {
-  
-  stop(
-    "One or more E-codes are linked to multiple underlying event names."
-  )
-}
-
-
-# 16. E-CODE ROBUSTNESS OVERLAP
+# 16. SOURCE_ID ROBUSTNESS OVERLAP
 
 event_code_data <- event_results %>%
   mutate(
@@ -809,12 +597,13 @@ event_code_data <- event_results %>%
     Event_Codes
   )
 
+
 get_event_codes <- function(x) {
   
   if (
-    length(x) == 0 |
-    is.na(x) |
-    x == "" |
+    length(x) == 0 ||
+    is.na(x) ||
+    x == "" ||
     trimws(x) == "None"
   ) {
     return(character(0))
@@ -840,10 +629,12 @@ get_event_codes <- function(x) {
   )
 }
 
+
 event_code_sets <- split(
   event_code_data$Event_Codes,
   event_code_data$Event_Group
 )
+
 
 event_code_sets <- lapply(
   event_code_sets,
@@ -862,9 +653,11 @@ event_code_sets <- lapply(
   }
 )
 
+
 event_groups <- sort(
   names(event_code_sets)
 )
+
 
 event_overlap <- do.call(
   rbind,
@@ -904,9 +697,11 @@ event_overlap <- do.call(
                 )
               }
             )
+            
           }
         )
       )
+      
     }
   )
 )

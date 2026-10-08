@@ -99,18 +99,31 @@ round_numeric <- function(x, digits = 4) {
 write_table <- function(x, name, digits = 4, appendix = FALSE) {
   
   x <- as.data.frame(x)
-  x[] <- lapply(x, round_numeric, digits = digits)
   
-  destination <- if (appendix) appendix_table_dir else core_table_dir
+  x[] <- lapply(
+    x,
+    round_numeric,
+    digits = digits
+  )
+  
+  destination <- if (appendix) {
+    appendix_table_dir
+  } else {
+    core_table_dir
+  }
   
   write.csv(
     x,
-    file = file.path(destination, paste0(name, ".csv")),
+    file = file.path(
+      destination,
+      paste0(name, ".csv")
+    ),
     row.names = FALSE,
     na = ""
   )
   
   print(x)
+  
   invisible(x)
 }
 
@@ -118,7 +131,10 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
 save_plot <- function(p, name, width = 7, height = 4.5) {
   
   ggsave(
-    filename = file.path(figure_dir, paste0(name, ".png")),
+    filename = file.path(
+      figure_dir,
+      paste0(name, ".png")
+    ),
     plot = p,
     width = width,
     height = height,
@@ -131,13 +147,25 @@ save_plot <- function(p, name, width = 7, height = 4.5) {
 
 theme_thesis <- theme_bw(base_size = 11) +
   theme(
-    plot.title = element_text(face = "bold", size = 12),
-    plot.subtitle = element_text(size = 10),
-    axis.title = element_text(size = 10),
-    axis.text = element_text(colour = "black"),
+    plot.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    plot.subtitle = element_text(
+      size = 10
+    ),
+    axis.title = element_text(
+      size = 10
+    ),
+    axis.text = element_text(
+      colour = "black"
+    ),
     legend.position = "bottom",
     panel.grid.minor = element_blank(),
-    panel.grid.major = element_line(colour = "grey85", linewidth = 0.25)
+    panel.grid.major = element_line(
+      colour = "grey85",
+      linewidth = 0.25
+    )
   )
 
 
@@ -166,7 +194,10 @@ data_audit <- data.frame(
   )
 )
 
-write_table(data_audit, "T01_Data_Audit")
+write_table(
+  data_audit,
+  "T01_Data_Audit"
+)
 
 
 # 7. Descriptive Statistics
@@ -179,41 +210,90 @@ statistics <- data.frame(
   row.names = NULL
 )
 
-write_table(statistics, "T02_Descriptive_Statistics")
+write_table(
+  statistics,
+  "T02_Descriptive_Statistics"
+)
 
 
 # 8. GARCH Model Selection
 
-write_table(e21$comparison, "T03_Bitcoin_GARCH_Comparison")
-write_table(e21$mean_comparison, "T04_Bitcoin_EGARCH_Mean_Comparison")
-write_table(e22$comparison, "T05_J303_GARCH_Comparison")
-write_table(e22$arma.comparison, "T06_J303_EGARCH_Mean_Comparison")
+write_table(
+  e21$comparison,
+  "T03_Bitcoin_GARCH_Comparison"
+)
+
+write_table(
+  e21$mean_comparison,
+  "T04_Bitcoin_EGARCH_Mean_Comparison"
+)
+
+write_table(
+  e22$comparison,
+  "T05_J303_GARCH_Comparison"
+)
+
+write_table(
+  e22$arma.comparison,
+  "T06_J303_EGARCH_Mean_Comparison"
+)
 
 
 # 9. Final GARCH Diagnostics
 
-garch_diagnostic_row <- function(fit, asset, model_name) {
+garch_diagnostic_row <- function(
+    fit,
+    asset,
+    model_name
+) {
   
-  z <- residuals(fit, standardize = TRUE)
+  z <- residuals(
+    fit,
+    standardize = TRUE
+  )
   
-  lb1 <- Box.test(z, lag = 20, type = "Ljung-Box")
-  lb2 <- Box.test(z^2, lag = 20, type = "Ljung-Box")
-  arch <- ArchTest(z, lags = 12)
+  lb1 <- Box.test(
+    z,
+    lag = 20,
+    type = "Ljung-Box"
+  )
+  
+  lb2 <- Box.test(
+    z^2,
+    lag = 20,
+    type = "Ljung-Box"
+  )
+  
+  arch <- ArchTest(
+    z,
+    lags = 12
+  )
   
   persistence_value <- tryCatch(
-    as.numeric(persistence(fit)[1]),
-    error = function(e) NA_real_
+    as.numeric(
+      persistence(fit)[1]
+    ),
+    error = function(e) {
+      NA_real_
+    }
   )
   
   ny_joint <- tryCatch(
-    as.numeric(nyblom(fit)$JointStat),
-    error = function(e) NA_real_
+    as.numeric(
+      nyblom(fit)$JointStat
+    ),
+    error = function(e) {
+      NA_real_
+    }
   )
   
   data.frame(
     Asset = asset,
     Model = model_name,
-    Convergence = tryCatch(fit@fit$convergence, error = function(e) NA),
+    Convergence = tryCatch(
+      fit@fit$convergence,
+      error = function(e) NA
+    ),
     Persistence = persistence_value,
     Ljung_Box_Residual_p = lb1$p.value,
     Ljung_Box_Squared_p = lb2$p.value,
@@ -224,13 +304,26 @@ garch_diagnostic_row <- function(fit, asset, model_name) {
 
 
 garch_diagnostics <- rbind(
-  garch_diagnostic_row(e21$fit.egarch, "Bitcoin", "ARMA(0,0)-EGARCH(1,1)-t"),
-  garch_diagnostic_row(e22$fit.egarch, "J303", "ARMA(0,0)-EGARCH(1,1)-t")
+  
+  garch_diagnostic_row(
+    e21$fit.egarch,
+    "Bitcoin",
+    "ARMA(0,0)-EGARCH(1,1)-t"
+  ),
+  
+  garch_diagnostic_row(
+    e22$fit.egarch,
+    "J303",
+    "ARMA(0,0)-EGARCH(1,1)-t"
+  )
 )
 
 rownames(garch_diagnostics) <- NULL
 
-write_table(garch_diagnostics, "T07_Final_GARCH_Diagnostics")
+write_table(
+  garch_diagnostics,
+  "T07_Final_GARCH_Diagnostics"
+)
 
 
 # 10. Weekday Diagnostics
@@ -238,13 +331,23 @@ write_table(garch_diagnostics, "T07_Final_GARCH_Diagnostics")
 weekday_btc <- aggregate(
   BTC ~ Day,
   data = e1$weekday_summary,
-  FUN = function(x) sd(x, na.rm = TRUE)
+  FUN = function(x) {
+    sd(
+      x,
+      na.rm = TRUE
+    )
+  }
 )
 
 weekday_j303 <- aggregate(
   J303 ~ Day,
   data = e1$weekday_summary,
-  FUN = function(x) sd(x, na.rm = TRUE)
+  FUN = function(x) {
+    sd(
+      x,
+      na.rm = TRUE
+    )
+  }
 )
 
 weekday_return_sd <- merge(
@@ -254,36 +357,269 @@ weekday_return_sd <- merge(
   all = TRUE
 )
 
-names(weekday_return_sd) <- c("Day", "Bitcoin_SD", "J303_SD")
+names(weekday_return_sd) <- c(
+  "Day",
+  "Bitcoin_SD",
+  "J303_SD"
+)
 
-write_table(weekday_return_sd, "T08_Weekday_Return_SD", appendix = TRUE)
+write_table(
+  weekday_return_sd,
+  "T08_Weekday_Return_SD",
+  appendix = TRUE
+)
 
 
 # 11. GPR -> Bitcoin Volatility
 
-write_table(e3$correlation.summary, "T09_GPR_Bitcoin_Correlation")
-write_table(e3$regression.summary, "T10_GPR_Bitcoin_Regression")
-write_table(e3$gpr.component.summary, "T11_GPR_Component_Regression")
-write_table(e3$post2017.comparison, "T12_GPR_Bitcoin_Post2017")
+write_table(
+  e3$correlation.summary,
+  "T09_GPR_Bitcoin_Correlation"
+)
+
+write_table(
+  e3$regression.summary,
+  "T10_GPR_Bitcoin_Regression"
+)
+
+write_table(
+  e3$gpr.component.summary,
+  "T11_GPR_Component_Regression"
+)
+
+write_table(
+  e3$gpr.component.dynamic.summary,
+  "T11a_GPR_Component_Dynamic_Regression",
+  appendix = TRUE
+)
+
+write_table(
+  e3$post2017.comparison,
+  "T12_GPR_Bitcoin_Post2017"
+)
 
 
 # 12. Bitcoin -> J303 Volatility
 
-write_table(e4$correlation.summary, "T13_Bitcoin_J303_Correlation")
-write_table(e4$regression.summary, "T14_Bitcoin_J303_Spillover_Models")
-write_table(e4$granger.summary, "T15_Granger_Causality")
-write_table(e4$post2017.summary, "T16_Bitcoin_J303_Post2017")
-write_table(e4$granger.post2017.summary, "T17_Granger_Post2017")
-write_table(e4$diagnostic.summary, "T18_Bitcoin_J303_Diagnostics", appendix = TRUE)
-write_table(e4$dynamic.serial.summary, "T19_Bitcoin_J303_Dynamic_Serial_Correlation", appendix = TRUE)
+write_table(
+  e4$correlation.summary,
+  "T13_Bitcoin_J303_Correlation"
+)
 
-write_table(e4$incremental.summary, "T19a_Bitcoin_J303_Incremental_R2")
+
+t14_spillover <- e4$regression.summary
+
+t14_incremental <- e4$incremental.summary
+
+t14_incremental <- t14_incremental %>%
+  select(
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value
+  )
+
+t14_spillover <- t14_spillover %>%
+  mutate(
+    Restricted_R2 = NA_real_,
+    Full_R2 = NA_real_,
+    Delta_R2 = NA_real_,
+    Partial_F_Statistic = NA_real_,
+    Partial_F_P_Value = NA_real_
+  )
+
+t14_dynamic <- which(
+  t14_spillover$Model == "Dynamic 2 Lags"
+)
+
+if (length(t14_dynamic) == 1) {
+  
+  t14_spillover$Restricted_R2[t14_dynamic] <-
+    t14_incremental$Restricted_R2[1]
+  
+  t14_spillover$Full_R2[t14_dynamic] <-
+    t14_incremental$Full_R2[1]
+  
+  t14_spillover$Delta_R2[t14_dynamic] <-
+    t14_incremental$Delta_R2[1]
+  
+  t14_spillover$Partial_F_Statistic[t14_dynamic] <-
+    t14_incremental$Partial_F_Statistic[1]
+  
+  t14_spillover$Partial_F_P_Value[t14_dynamic] <-
+    t14_incremental$Partial_F_P_Value[1]
+}
+
+t14_spillover <- t14_spillover %>%
+  relocate(
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value,
+    .after = Adj_R2
+  )
+
+write_table(
+  t14_spillover,
+  "T14_Bitcoin_J303_Spillover_Models"
+)
+
+write_table(
+  e4$granger.summary,
+  "T15_Granger_Causality"
+)
+
+
+# Post-2017 incremental R-squared and partial F-test
+
+post2017_data <- master$data0 %>%
+  filter(
+    Date >= as.Date("2017-01-01")
+  ) %>%
+  mutate(
+    
+    BTC_Lag1 = lag(
+      BTC_Volatility,
+      1
+    ),
+    
+    BTC_Lag2 = lag(
+      BTC_Volatility,
+      2
+    ),
+    
+    J303_Lag1 = lag(
+      J303_Volatility,
+      1
+    ),
+    
+    J303_Lag2 = lag(
+      J303_Volatility,
+      2
+    )
+    
+  ) %>%
+  na.omit()
+
+
+post2017_restricted <- lm(
+  J303_Volatility ~
+    J303_Lag1 +
+    J303_Lag2,
+  data = post2017_data
+)
+
+
+post2017_full <- lm(
+  J303_Volatility ~
+    BTC_Volatility +
+    BTC_Lag1 +
+    BTC_Lag2 +
+    J303_Lag1 +
+    J303_Lag2,
+  data = post2017_data
+)
+
+
+post2017_partial_f <- anova(
+  post2017_restricted,
+  post2017_full
+)
+
+
+post2017_incremental <- data.frame(
+  Restricted_R2 =
+    summary(post2017_restricted)$r.squared,
+  
+  Full_R2 =
+    summary(post2017_full)$r.squared,
+  
+  Delta_R2 =
+    summary(post2017_full)$r.squared -
+    summary(post2017_restricted)$r.squared,
+  
+  Partial_F_Statistic =
+    post2017_partial_f$F[2],
+  
+  Partial_F_P_Value =
+    post2017_partial_f$`Pr(>F)`[2]
+)
+
+
+t16_post2017 <- e4$post2017.summary %>%
+  mutate(
+    Restricted_R2 = NA_real_,
+    Full_R2 = NA_real_,
+    Delta_R2 = NA_real_,
+    Partial_F_Statistic = NA_real_,
+    Partial_F_P_Value = NA_real_
+  )
+
+t16_dynamic <- which(
+  t16_post2017$Model == "Dynamic 2 Lags"
+)
+
+if (length(t16_dynamic) == 1) {
+  
+  t16_post2017$Restricted_R2[t16_dynamic] <-
+    post2017_incremental$Restricted_R2
+  
+  t16_post2017$Full_R2[t16_dynamic] <-
+    post2017_incremental$Full_R2
+  
+  t16_post2017$Delta_R2[t16_dynamic] <-
+    post2017_incremental$Delta_R2
+  
+  t16_post2017$Partial_F_Statistic[t16_dynamic] <-
+    post2017_incremental$Partial_F_Statistic
+  
+  t16_post2017$Partial_F_P_Value[t16_dynamic] <-
+    post2017_incremental$Partial_F_P_Value
+}
+
+t16_post2017 <- t16_post2017 %>%
+  relocate(
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value,
+    .after = Adj_R2
+  )
+
+write_table(
+  t16_post2017,
+  "T16_Bitcoin_J303_Post2017"
+)
+
+write_table(
+  e4$granger.post2017.summary,
+  "T17_Granger_Post2017"
+)
+
+write_table(
+  e4$diagnostic.summary,
+  "T18_Bitcoin_J303_Diagnostics",
+  appendix = TRUE
+)
+
+write_table(
+  e4$dynamic.serial.summary,
+  "T19_Bitcoin_J303_Dynamic_Serial_Correlation",
+  appendix = TRUE
+)
 
 
 # 13. GPR Regimes: Bitcoin Volatility
 
 gpr_thresholds <- data.frame(
-  Measure = c("GPRD", "GPRD_ACT", "GPRD_THREAT"),
+  Measure = c(
+    "GPRD",
+    "GPRD_ACT",
+    "GPRD_THREAT"
+  ),
   Threshold = c(
     master$GPRD_threshold,
     master$GPRD_ACT_threshold,
@@ -291,50 +627,194 @@ gpr_thresholds <- data.frame(
   )
 )
 
-write_table(gpr_thresholds, "T20_GPR_Thresholds")
-write_table(e5$regime.summary, "T21_GPR_Regime_Descriptives")
-write_table(e5$dynamic.comparison, "T22_GPR_Regime_Dynamic_Models")
-write_table(e5$act.dynamic.comparison, "T23_GPR_ACT_Regime_Dynamic_Models", appendix = TRUE)
-write_table(e5$threat.dynamic.comparison, "T24_GPR_THREAT_Regime_Dynamic_Models", appendix = TRUE)
+write_table(
+  gpr_thresholds,
+  "T20_GPR_Thresholds"
+)
 
-write_table(e5$dynamic.incremental.r2, "T22a_GPR_Regime_Incremental_R2")
-write_table(e5$act.incremental.r2, "T23a_GPR_ACT_Regime_Incremental_R2", appendix = TRUE)
-write_table(e5$threat.incremental.r2, "T24a_GPR_THREAT_Regime_Incremental_R2", appendix = TRUE)
+write_table(
+  e5$regime.summary,
+  "T21_GPR_Regime_Descriptives"
+)
+
+write_table(
+  e5$dynamic.comparison,
+  "T22_GPR_Regime_Dynamic_Models"
+)
+
+
+t23_act <- e5$act.dynamic.comparison
+
+t23_act_incremental <- e5$act.incremental.r2 %>%
+  select(
+    Regime,
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value
+  )
+
+t23_act <- t23_act %>%
+  left_join(
+    t23_act_incremental,
+    by = "Regime"
+  ) %>%
+  relocate(
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value,
+    .after = Adj_R2
+  )
+
+write_table(
+  t23_act,
+  "T23_GPR_ACT_Regime_Dynamic_Models",
+  appendix = TRUE
+)
+
+
+t24_threat <- e5$threat.dynamic.comparison
+
+t24_threat_incremental <- e5$threat.incremental.r2 %>%
+  select(
+    Regime,
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value
+  )
+
+t24_threat <- t24_threat %>%
+  left_join(
+    t24_threat_incremental,
+    by = "Regime"
+  ) %>%
+  relocate(
+    Restricted_R2,
+    Full_R2,
+    Delta_R2,
+    Partial_F_Statistic,
+    Partial_F_P_Value,
+    .after = Adj_R2
+  )
+
+write_table(
+  t24_threat,
+  "T24_GPR_THREAT_Regime_Dynamic_Models",
+  appendix = TRUE
+)
 
 
 # 14. GPR Regime Interaction
 
 gprd_interaction <- data.frame(
-  Variable = c("GPR", "Elevated GPR", "GPR x Elevated GPR"),
+  Variable = c(
+    "GPR",
+    "Elevated GPR",
+    "GPR x Elevated GPR"
+  ),
+  
   Estimate = c(
-    e5$interaction.nw["GPRD", "Estimate"],
-    e5$interaction.nw["GPR_RegimeElevated GPR", "Estimate"],
-    e5$interaction.nw["GPRD:GPR_RegimeElevated GPR", "Estimate"]
+    e5$interaction.nw[
+      "GPRD",
+      "Estimate"
+    ],
+    
+    e5$interaction.nw[
+      "GPR_RegimeElevated GPR",
+      "Estimate"
+    ],
+    
+    e5$interaction.nw[
+      "GPRD:GPR_RegimeElevated GPR",
+      "Estimate"
+    ]
   ),
+  
   Robust_SE = c(
-    e5$interaction.nw["GPRD", "Std. Error"],
-    e5$interaction.nw["GPR_RegimeElevated GPR", "Std. Error"],
-    e5$interaction.nw["GPRD:GPR_RegimeElevated GPR", "Std. Error"]
+    e5$interaction.nw[
+      "GPRD",
+      "Std. Error"
+    ],
+    
+    e5$interaction.nw[
+      "GPR_RegimeElevated GPR",
+      "Std. Error"
+    ],
+    
+    e5$interaction.nw[
+      "GPRD:GPR_RegimeElevated GPR",
+      "Std. Error"
+    ]
   ),
+  
   P_Value = c(
-    e5$interaction.nw["GPRD", "Pr(>|t|)"],
-    e5$interaction.nw["GPR_RegimeElevated GPR", "Pr(>|t|)"],
-    e5$interaction.nw["GPRD:GPR_RegimeElevated GPR", "Pr(>|t|)"]
+    e5$interaction.nw[
+      "GPRD",
+      "Pr(>|t|)"
+    ],
+    
+    e5$interaction.nw[
+      "GPR_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ],
+    
+    e5$interaction.nw[
+      "GPRD:GPR_RegimeElevated GPR",
+      "Pr(>|t|)"
+    ]
   )
 )
 
-write_table(gprd_interaction, "T25_GPR_Regime_Interaction")
-write_table(e5$interaction.summary, "T25a_GPR_Alternative_Measure_Interactions", appendix = TRUE)
+write_table(
+  gprd_interaction,
+  "T25_GPR_Regime_Interaction"
+)
+
+write_table(
+  e5$interaction.summary,
+  "T25a_GPR_Alternative_Measure_Interactions",
+  appendix = TRUE
+)
 
 
 # 15. GPR Regimes: Bitcoin -> J303
 
-write_table(e7$regime.summary, "T26_Bitcoin_J303_Regime_Descriptives")
-write_table(e7$correlation.summary, "T27_Bitcoin_J303_Regime_Correlation")
-write_table(e7$dynamic.comparison, "T28_Bitcoin_J303_Regime_Spillover")
-write_table(e7$interaction.summary, "T29_Bitcoin_J303_Regime_Interaction")
-write_table(e7$act.dynamic.comparison, "T30_Bitcoin_J303_GPR_ACT_Regime_Spillover", appendix = TRUE)
-write_table(e7$threat.dynamic.comparison, "T31_Bitcoin_J303_GPR_THREAT_Regime_Spillover", appendix = TRUE)
+write_table(
+  e7$regime.summary,
+  "T26_Bitcoin_J303_Regime_Descriptives"
+)
+
+write_table(
+  e7$correlation.summary,
+  "T27_Bitcoin_J303_Regime_Correlation"
+)
+
+write_table(
+  e7$dynamic.comparison,
+  "T28_Bitcoin_J303_Regime_Spillover"
+)
+
+write_table(
+  e7$interaction.summary,
+  "T29_Bitcoin_J303_Regime_Interaction"
+)
+
+write_table(
+  e7$act.dynamic.comparison,
+  "T30_Bitcoin_J303_GPR_ACT_Regime_Spillover",
+  appendix = TRUE
+)
+
+write_table(
+  e7$threat.dynamic.comparison,
+  "T31_Bitcoin_J303_GPR_THREAT_Regime_Spillover",
+  appendix = TRUE
+)
 
 write_table(
   e7$gprd.incremental.r2.partial,
@@ -381,8 +861,14 @@ write_table(
 )
 
 write_table(
-  e6$event.stability,
-  "T36_GPR_Bitcoin_Event_Stability",
+  e6$significant.correlation.grid,
+  "T35a_GPR_Bitcoin_Event_Significance_Correlation_Grid",
+  appendix = TRUE
+)
+
+write_table(
+  e6$significant.regression.grid,
+  "T35b_GPR_Bitcoin_Event_Significance_NW_Grid",
   appendix = TRUE
 )
 
@@ -421,13 +907,97 @@ write_table(
 )
 
 write_table(
+  e8$significant.correlation.grid,
+  "T41a_Bitcoin_J303_Event_Significance_Correlation_Grid",
+  appendix = TRUE
+)
+
+write_table(
+  e8$significant.regression.grid,
+  "T41b_Bitcoin_J303_Event_Significance_NW_Grid",
+  appendix = TRUE
+)
+
+write_table(
   e8$regression.stability,
   "T42_Bitcoin_J303_Event_Regression_Stability",
   appendix = TRUE
 )
 
 
-# 19. Prepare Figure Data
+# 19. Peak Date Source Audit
+
+peak_date_source_audit <- readxl::read_excel(
+  file.path(
+    script_dir,
+    "Thesis_GPR_Event_Audit_FINAL_VERIFIED.xlsx"
+  ),
+  sheet = "Peak Data Sources"
+)
+
+if (
+  "Peak_Date" %in% names(peak_date_source_audit)
+) {
+  
+  peak_date_duplicates <- peak_date_source_audit %>%
+    count(
+      Peak_Date
+    ) %>%
+    filter(
+      n > 1
+    )
+  
+  if (nrow(peak_date_duplicates) > 0) {
+    stop(
+      "Peak Data Sources contains duplicate peak dates."
+    )
+  }
+  
+}
+
+write_table(
+  peak_date_source_audit,
+  "T36_GPR_Peak_Date_Source_Audit",
+  appendix = TRUE
+)
+
+
+# 20. Event Method Notes
+
+event_method_notes <- data.frame(
+  
+  Item = c(
+    "Event identification",
+    "Smoothed event period",
+    "Raw peak selection",
+    "Cross-window event rule",
+    "Event analysis windows",
+    "11-day Newey-West inference"
+  ),
+  
+  Description = c(
+    "For each GPR measure and smoothing window, the five largest smoothed peaks are identified.",
+    
+    "Each event period is defined from the preceding trough to the following trough in the smoothed GPR series.",
+    
+    "Within each full smoothed event period, the three highest observations from the unsmoothed GPR series are selected.",
+    
+    "All three selected raw peak dates are checked against the full smoothed event windows of the other tests. Any underlying event associated with a selected raw peak inside another event window is added as an additional event without replacing the original top-three classification.",
+    
+    "Event regressions use fixed peak-centred windows containing exactly 11, 21, or 31 trading observations.",
+    
+    "With only 11 observations, Newey-West inference is treated as unreliable and should be interpreted descriptively rather than as strong inferential evidence."
+  )
+)
+
+write_table(
+  event_method_notes,
+  "T36a_Event_Method_Notes",
+  appendix = TRUE
+)
+
+
+# 21. Prepare Figure Data
 
 plot_data <- data.frame(
   Date = data0$Date,
@@ -441,7 +1011,7 @@ plot_data <- data.frame(
 )
 
 
-# 20. Create Figures
+# 22. Create Figures
 
 p_btc_return <- ggplot(
   plot_data,
@@ -830,7 +1400,7 @@ p_j303_resid <- ggplot(
   theme_thesis
 
 
-# 21. Save Figures
+# 23. Save Figures
 
 save_plot(
   p_btc_return,
@@ -907,7 +1477,7 @@ save_plot(
 )
 
 
-# 22. Results Summary
+# 24. Results Summary
 
 cat(
   "\nResults written to:\n",

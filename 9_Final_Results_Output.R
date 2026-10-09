@@ -121,11 +121,64 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     row.names = FALSE,
     na = ""
   )
-  # Create a LaTeX-friendly tab-separated file.
-  # Unlike CSV, tabs allow commas in event descriptions
-  # without requiring quote wrappers around every field.
+  # Create a display-only version for LaTeX.
+  # The original data and CSV export remain unchanged.
+  x_tsv <- x
+  original_names <- names(x_tsv)
+  
+  # Make event IDs easier to read in printed tables.
+  if ("Event_ID" %in% original_names) {
+    x_tsv[["Event_ID"]] <- gsub(
+      "_", "-", x_tsv[["Event_ID"]], fixed = TRUE
+    )
+  }
+  
+  # Replace underscores in displayed text, but preserve URLs.
+  for (nm in original_names) {
+    if (
+      is.character(x_tsv[[nm]]) &&
+      nm != "Event_ID" &&
+      !grepl("url|link|reference", nm, ignore.case = TRUE)
+    ) {
+      x_tsv[[nm]] <- gsub(
+        "_", " ", x_tsv[[nm]], fixed = TRUE
+      )
+    }
+  }
+  
+  # Make column headings more readable.
+  display_names <- gsub(
+    "_", " ", original_names, fixed = TRUE
+  )
+  
+  display_names <- gsub(
+    "([a-z0-9])([A-Z])",
+    "\\1 \\2",
+    display_names,
+    perl = TRUE
+  )
+  
+  display_names <- gsub(
+    " +", " ", display_names
+  )
+  
+  # Shorten diagnostic headings where appropriate.
+  display_names[
+    display_names == "Ljung Box Residual p"
+  ] <- "LB p (residuals)"
+  
+  display_names[
+    display_names == "Ljung Box Squared p"
+  ] <- "LB p (squared residuals)"
+  
+  display_names[
+    display_names == "Nyblom Joint"
+  ] <- "Nyblom joint"
+  
+  names(x_tsv) <- display_names
+  
   write.table(
-    x,
+    x_tsv,
     file = file.path(
       destination,
       paste0(name, ".tsv")
@@ -133,6 +186,7 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     sep = "\t",
     quote = FALSE,
     row.names = FALSE,
+    col.names = TRUE,
     na = ""
   )
   

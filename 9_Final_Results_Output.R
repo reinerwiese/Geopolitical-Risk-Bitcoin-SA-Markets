@@ -121,6 +121,20 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     row.names = FALSE,
     na = ""
   )
+  # Create a LaTeX-friendly tab-separated file.
+  # Unlike CSV, tabs allow commas in event descriptions
+  # without requiring quote wrappers around every field.
+  write.table(
+    x,
+    file = file.path(
+      destination,
+      paste0(name, ".tsv")
+    ),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE,
+    na = ""
+  )
   
   print(x)
   
@@ -836,21 +850,60 @@ write_table(
 
 # 16. GPR -> Bitcoin Event Analysis
 
+# D.1: compact event specification list
+t32_events <- e6$event.results_21$events %>%
+  dplyr::select(
+    Event_ID,
+    Event_Codes,
+    Measure,
+    Smoothing,
+    Peak_Date
+  )
+
 write_table(
-  e6$event.results_21$events,
+  t32_events,
   "T32_GPR_Bitcoin_Events_21Day"
 )
 
+
+# D.3: event-window descriptive statistics
+t33_statistics <- e6$event.results_21$statistics %>%
+  dplyr::select(
+    Event_ID,
+    Event_Codes,
+    Measure,
+    Smoothing,
+    Peak_Date,
+    Sample_Size,
+    Mean_GPR,
+    SD_GPR,
+    Mean_BTC_Volatility,
+    SD_BTC_Volatility
+  )
+
 write_table(
-  e6$event.results_21$statistics,
+  t33_statistics,
   "T33_GPR_Bitcoin_Event_Statistics_21Day",
   appendix = TRUE
 )
 
-event21_regression <- e6$event.results_21$regression
+
+# D.4: selected event regression results
+t34_regression <- e6$event.results_21$regression %>%
+  dplyr::transmute(
+    Event_ID,
+    Source_IDs = Event_Codes,
+    Measure,
+    Peak_Date,
+    N = Sample_Size,
+    Correlation,
+    GPR_Coefficient,
+    NW_P_Value = NeweyWest_P_Value,
+    Significant
+  )
 
 write_table(
-  event21_regression,
+  t34_regression,
   "T34_GPR_Bitcoin_Event_Regression_21Day"
 )
 
@@ -860,18 +913,28 @@ write_table(
   appendix = TRUE
 )
 
-write_table(
+t35a <- tibble::rownames_to_column(
   e6$significant.correlation.grid,
+  var = "Measure"
+)
+
+write_table(
+  t35a,
   "T35a_GPR_Bitcoin_Event_Significance_Correlation_Grid",
   appendix = TRUE
 )
 
-write_table(
+
+t35b <- tibble::rownames_to_column(
   e6$significant.regression.grid,
+  var = "Measure"
+)
+
+write_table(
+  t35b,
   "T35b_GPR_Bitcoin_Event_Significance_NW_Grid",
   appendix = TRUE
 )
-
 
 # 17. GPR -> Bitcoin Event Regression Stability
 
@@ -884,19 +947,60 @@ write_table(
 
 # 18. Bitcoin -> J303 Event Analysis
 
+# D.8: compact event specification list
+t38_events <- e8$event.results_21$events %>%
+  dplyr::select(
+    Event_ID,
+    Event_Codes,
+    Measure,
+    Smoothing,
+    Peak_Date
+  )
+
 write_table(
-  e8$event.results_21$events,
+  t38_events,
   "T38_Bitcoin_J303_Events_21Day"
 )
 
+
+# D.10: event-window descriptive statistics
+t39_statistics <- e8$event.results_21$statistics %>%
+  dplyr::select(
+    Event_ID,
+    Event_Codes,
+    Measure,
+    Smoothing,
+    Peak_Date,
+    Sample_Size,
+    Mean_BTC_Volatility,
+    SD_BTC_Volatility,
+    Mean_J303_Volatility,
+    SD_J303_Volatility
+  )
+
 write_table(
-  e8$event.results_21$statistics,
+  t39_statistics,
   "T39_Bitcoin_J303_Event_Statistics_21Day",
   appendix = TRUE
 )
 
+
+# D.11: selected event regression results
+t40_regression <- e8$event.results_21$regression %>%
+  dplyr::transmute(
+    Event_ID,
+    Source_IDs = Event_Codes,
+    Measure,
+    Peak_Date,
+    N = Sample_Size,
+    Correlation,
+    BTC_Coefficient,
+    NW_P_Value = NeweyWest_P_Value,
+    Significant
+  )
+
 write_table(
-  e8$event.results_21$regression,
+  t40_regression,
   "T40_Bitcoin_J303_Event_Regression_21Day"
 )
 

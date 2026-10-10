@@ -21,6 +21,28 @@ dir.create(appendix_table_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
 
 
+# Remove stale outputs for the obsolete T37 and T42 stability tables.
+# These files may remain from a previous Script 9 run because they are no
+# longer written by the current version.
+obsolete_table_files <- file.path(
+  appendix_table_dir,
+  c(
+    "T37_GPR_Bitcoin_Event_Regression_Stability.csv",
+    "T37_GPR_Bitcoin_Event_Regression_Stability.tsv",
+    "T42_Bitcoin_J303_Event_Regression_Stability.csv",
+    "T42_Bitcoin_J303_Event_Regression_Stability.tsv"
+  )
+)
+
+obsolete_table_files <- obsolete_table_files[
+  file.exists(obsolete_table_files)
+]
+
+if (length(obsolete_table_files) > 0) {
+  invisible(file.remove(obsolete_table_files))
+}
+
+
 # 3. Check Required Files
 
 script_files <- c(
@@ -96,15 +118,54 @@ round_numeric <- function(x, digits = 4) {
 }
 
 
+# Standardise p-value presentation across all exported tables.
+# All p-values below 0.001 are displayed as <0.001, rather than as zero
+# or as varying scientific-notation thresholds.
+format_p_values <- function(x, digits = 4) {
+  
+  out <- rep(NA_character_, length(x))
+  
+  # Use the same reporting threshold for all exported p-values.
+  # This includes values numerically returned as exactly zero.
+  is_small <- !is.na(x) & is.finite(x) & x >= 0 & x < 0.001
+  is_reportable <- !is.na(x) & is.finite(x) & x >= 0.001 & x <= 1
+  is_other <- !is.na(x) & !(is_small | is_reportable)
+  
+  out[is_small] <- "<0.001"
+  out[is_reportable] <- formatC(
+    x[is_reportable],
+    format = "g",
+    digits = digits
+  )
+  out[is_other] <- as.character(x[is_other])
+  
+  out
+}
+
+
 write_table <- function(x, name, digits = 4, appendix = FALSE) {
   
   x <- as.data.frame(x)
+  
+  # Keep p-values before general numeric rounding so that small values
+  # are not rounded to zero in the exported tables.
+  p_value_cols <- names(x)[
+    grepl("p.?value|_p($|_)", names(x), ignore.case = TRUE) &
+      vapply(x, is.numeric, logical(1))
+  ]
+  raw_p_values <- x[p_value_cols]
   
   x[] <- lapply(
     x,
     round_numeric,
     digits = digits
   )
+  
+  # Apply the same <0.001 threshold and four-significant-digit convention
+  # to all numeric p-value columns in both CSV and TSV exports.
+  for (nm in p_value_cols) {
+    x[[nm]] <- format_p_values(raw_p_values[[nm]], digits = 4)
+  }
   
   destination <- if (appendix) {
     appendix_table_dir
@@ -122,7 +183,8 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     na = ""
   )
   # Create a display-only version for LaTeX.
-  # The original data and CSV export remain unchanged.
+  # P-value formatting is standardised in both exports; the following
+  # changes only make event IDs, text, and headings easier to read in TSV.
   x_tsv <- x
   original_names <- names(x_tsv)
   
@@ -455,8 +517,22 @@ write_table(
   "T11_GPR_Component_Regression"
 )
 
+# Restore the full-precision incremental R-squared values for this table.
+# Script 3 rounds Delta_R2 for its console summary, but the original values
+# remain available in the environment and should not be exported as zero.
+t11a_dynamic <- e3$gpr.component.dynamic.summary
+
+if (all(c("delta_R2_ACT", "delta_R2_THREAT") %in% ls(envir = e3))) {
+  t11a_dynamic$Delta_R2 <- c(
+    e3$delta_R2_ACT,
+    e3$delta_R2_THREAT
+  )
+} else {
+  stop("Full-precision Delta_R2 values for T11a were not found in Script 3 output.")
+}
+
 write_table(
-  e3$gpr.component.dynamic.summary,
+  t11a_dynamic,
   "T11a_GPR_Component_Dynamic_Regression",
   appendix = TRUE
 )
@@ -540,60 +616,31 @@ write_table(
 )
 
 
-# Post-2017 incremental R-squared and partial F-test
+# Post-2017 incremental R-squared and Newey-West Wald test
+# Reuse Script 4's robustness sample, which starts on 1 January 2018,
+# and its corresponding full dynamic model to keep T16 consistent.
 
-post2017_data <- master$data0 %>%
-  filter(
-    Date >= as.Date("2017-01-01")
-  ) %>%
-  mutate(
-    
-    BTC_Lag1 = lag(
-      BTC_Volatility,
-      1
-    ),
-    
-    BTC_Lag2 = lag(
-      BTC_Volatility,
-      2
-    ),
-    
-    J303_Lag1 = lag(
-      J303_Volatility,
-      1
-    ),
-    
-    J303_Lag2 = lag(
-      J303_Volatility,
-      2
-    )
-    
-  ) %>%
-  na.omit()
+post2017_data <- e4$post2017.data
 
 
 post2017_restricted <- lm(
   J303_Volatility ~
-    J303_Lag1 +
-    J303_Lag2,
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
   data = post2017_data
 )
 
 
-post2017_full <- lm(
-  J303_Volatility ~
-    BTC_Volatility +
-    BTC_Lag1 +
-    BTC_Lag2 +
-    J303_Lag1 +
-    J303_Lag2,
-  data = post2017_data
-)
+post2017_full <- e4$post2017.models[["Dynamic 2 Lags"]]
 
 
-post2017_partial_f <- anova(
+post2017_partial_f <- lmtest::waldtest(
   post2017_restricted,
-  post2017_full
+  post2017_full,
+  vcov = sandwich::NeweyWest(
+    post2017_full,
+    prewhite = FALSE
+  )
 )
 
 
@@ -990,16 +1037,9 @@ write_table(
   appendix = TRUE
 )
 
-# 17. GPR -> Bitcoin Event Regression Stability
-
-write_table(
-  e6$regression.stability,
-  "T37_GPR_Bitcoin_Event_Regression_Stability",
-  appendix = TRUE
-)
 
 
-# 18. Bitcoin -> J303 Event Analysis
+# 17. Bitcoin -> J303 Event Analysis
 
 # D.8: compact event specification list
 t38_events <- e8$event.results_21$events %>%
@@ -1064,26 +1104,32 @@ write_table(
   appendix = TRUE
 )
 
-write_table(
+t41a <- tibble::rownames_to_column(
   e8$significant.correlation.grid,
+  var = "Measure"
+)
+
+write_table(
+  t41a,
   "T41a_Bitcoin_J303_Event_Significance_Correlation_Grid",
   appendix = TRUE
 )
 
-write_table(
+
+t41b <- tibble::rownames_to_column(
   e8$significant.regression.grid,
+  var = "Measure"
+)
+
+write_table(
+  t41b,
   "T41b_Bitcoin_J303_Event_Significance_NW_Grid",
   appendix = TRUE
 )
 
-write_table(
-  e8$regression.stability,
-  "T42_Bitcoin_J303_Event_Regression_Stability",
-  appendix = TRUE
-)
 
 
-# 19. GPR Event Source Audit
+# 18. GPR Event Source Audit
 
 raw_peak_audit <- readxl::read_excel(
   file.path(
@@ -1115,7 +1161,40 @@ write_table(
 )
 
 
-# 20. Event Method Notes
+# Event identification robustness: overlap across GPR measures and windows.
+# Scripts 6 and 8 use the same event-overlap object, so export it once.
+
+write_table(
+  e6$event.identification.robustness,
+  "T36c_Event_Identification_Robustness",
+  appendix = TRUE
+)
+
+
+# Complete episode-to-source-code map for all 45 event specifications.
+# Research-window start/end dates are intentionally omitted from this table.
+
+event_episode_codes <- dplyr::bind_rows(
+  e6$event.results_11$events,
+  e6$event.results_21$events,
+  e6$event.results_31$events
+) %>%
+  dplyr::select(
+    Event_ID,
+    Measure,
+    Smoothing,
+    Peak_Date,
+    Event_Codes
+  )
+
+write_table(
+  event_episode_codes,
+  "T36d_Event_Episode_to_Source_Codes",
+  appendix = TRUE
+)
+
+
+# 19. Event Method Notes
 
 event_method_notes <- data.frame(
   
@@ -1123,21 +1202,24 @@ event_method_notes <- data.frame(
     "Event identification",
     "Smoothed event period",
     "Raw peak selection",
-    "Cross-window event rule",
+    "Episode source-code assignment",
     "Event analysis windows",
+    "Overlapping 31-day windows",
     "11-day Newey-West inference"
   ),
   
   Description = c(
-    "For each GPR measure and smoothing window, the five largest smoothed peaks are identified.",
+    "For each GPR measure and smoothing window, candidate peaks are identified and the five peaks with the greatest prominence are selected.",
     
-    "Each event period is defined from the preceding trough to the following trough in the smoothed GPR series.",
+    "Each smoothed event period is defined from the preceding trough to the following trough. This period is distinct from the fixed peak-centred regression window.",
     
-    "Within each full smoothed event period, the three highest observations from the unsmoothed GPR series are selected.",
+    "The three highest observations from the unsmoothed GPR measure are selected within each event's fixed peak-centred regression window (News_Start_Row to News_End_Row).",
     
-    "All three selected raw peak dates are checked against the full smoothed event windows of the other tests. Any underlying event associated with a selected raw peak inside another event window is added as an additional event without replacing the original top-three classification.",
+    "The source codes assigned to an episode describe the underlying stories associated with its own three selected raw peak days. Stories from other episodes or GPR measures are not added to that episode's codes.",
     
-    "Event regressions use fixed peak-centred windows containing exactly 11, 21, or 31 trading observations.",
+    "Event regressions use fixed peak-centred windows containing exactly 11, 21, or 31 daily observations, matching the smoothing-window length.",
+    
+    "The two 31-day GPRD windows centred on the May and June 2021 peaks overlap substantially (about two and a half weeks) and share top raw-peak days. Their event identifications are therefore not independent.",
     
     "With only 11 observations, Newey-West inference is treated as unreliable and should be interpreted descriptively rather than as strong inferential evidence."
   )
@@ -1150,7 +1232,7 @@ write_table(
 )
 
 
-# 21. Prepare Figure Data
+# 20. Prepare Figure Data
 
 plot_data <- data.frame(
   Date = data0$Date,
@@ -1164,7 +1246,7 @@ plot_data <- data.frame(
 )
 
 
-# 22. Create Figures
+# 21. Create Figures
 
 p_btc_return <- ggplot(
   plot_data,
@@ -1403,18 +1485,22 @@ p_regime <- ggplot(
   theme_thesis
 
 
-event21 <- e6$event.results_21$regression
-
-event21$Event <- factor(
-  event21$Event,
-  levels = unique(event21$Event)
-)
+# Use compact event IDs instead of full event names so the x-axis remains readable.
+# The corresponding event names and source codes are available in the event tables.
+event21 <- e6$event.results_21$regression %>%
+  mutate(
+    Event_Label = gsub("_", "-", Event_ID, fixed = TRUE),
+    Event_Label = factor(
+      Event_Label,
+      levels = unique(Event_Label)
+    )
+  )
 
 
 p_event_gpr_btc <- ggplot(
   event21,
   aes(
-    Event,
+    Event_Label,
     GPR_Coefficient,
     fill = Measure
   )
@@ -1433,7 +1519,7 @@ p_event_gpr_btc <- ggplot(
   ) +
   labs(
     title = "GPR–Bitcoin Volatility Relationship During Identified Events",
-    x = "Event",
+    x = "Event specification",
     y = "GPR coefficient",
     fill = "GPR measure"
   ) +
@@ -1441,23 +1527,27 @@ p_event_gpr_btc <- ggplot(
   theme(
     axis.text.x = element_text(
       angle = 45,
-      hjust = 1
+      hjust = 1,
+      vjust = 1,
+      size = 8
     )
   )
 
 
-event21_spill <- e8$event.results_21$regression
-
-event21_spill$Event <- factor(
-  event21_spill$Event,
-  levels = unique(event21_spill$Event)
-)
+event21_spill <- e8$event.results_21$regression %>%
+  mutate(
+    Event_Label = gsub("_", "-", Event_ID, fixed = TRUE),
+    Event_Label = factor(
+      Event_Label,
+      levels = unique(Event_Label)
+    )
+  )
 
 
 p_event_spill <- ggplot(
   event21_spill,
   aes(
-    Event,
+    Event_Label,
     BTC_Coefficient,
     fill = Measure
   )
@@ -1476,11 +1566,19 @@ p_event_spill <- ggplot(
   ) +
   labs(
     title = "Bitcoin–J303 Volatility Relationship During Identified Events",
-    x = "Event",
+    x = "Event specification",
     y = "Bitcoin volatility coefficient",
     fill = "GPR measure"
   ) +
-  theme_thesis
+  theme_thesis +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      vjust = 1,
+      size = 8
+    )
+  )
 
 
 btc_std_resid <- data.frame(
@@ -1553,7 +1651,7 @@ p_j303_resid <- ggplot(
   theme_thesis
 
 
-# 23. Save Figures
+# 22. Save Figures
 
 save_plot(
   p_btc_return,
@@ -1608,15 +1706,15 @@ save_plot(
 save_plot(
   p_event_gpr_btc,
   "F09_GPR_Bitcoin_Event_Coefficients_21Day",
-  width = 8,
-  height = 5
+  width = 11,
+  height = 6
 )
 
 save_plot(
   p_event_spill,
   "F10_Bitcoin_J303_Event_Coefficients_21Day",
-  width = 8,
-  height = 5
+  width = 11,
+  height = 6
 )
 
 save_plot(
@@ -1628,6 +1726,97 @@ save_plot(
   p_j303_resid,
   "F12_J303_Standardized_Residuals"
 )
+
+
+# 23. Validate Key Requested Outputs
+
+# This compact validation replaces the need to inspect every exported CSV.
+# It checks the T16 dynamic result, the four significance grids, and the
+# event-robustness/episode-code appendix tables.
+
+if (min(post2017_data$Date, na.rm = TRUE) < as.Date("2018-01-01")) {
+  stop("T16 validation failed: the robustness sample starts before 1 January 2018.")
+}
+
+if (
+  length(t16_dynamic) != 1 ||
+  is.na(t16_post2017$Delta_R2[t16_dynamic]) ||
+  is.na(t16_post2017$Partial_F_Statistic[t16_dynamic]) ||
+  is.na(t16_post2017$Partial_F_P_Value[t16_dynamic])
+) {
+  stop("T16 validation failed: the dynamic incremental result is missing.")
+}
+
+check_grid <- function(x, table_name) {
+  required_columns <- c(
+    "Measure",
+    "Smoothing_11",
+    "Smoothing_21",
+    "Smoothing_31"
+  )
+  
+  if (
+    nrow(x) != 3 ||
+    !all(required_columns %in% names(x)) ||
+    !all(c("GPRD", "GPRD_ACT", "GPRD_THREAT") %in% x$Measure)
+  ) {
+    stop(paste0(table_name, " validation failed: grid structure or measure labels are incorrect."))
+  }
+}
+
+check_grid(t35a, "T35a")
+check_grid(t35b, "T35b")
+check_grid(t41a, "T41a")
+check_grid(t41b, "T41b")
+
+if (nrow(e6$event.identification.robustness) == 0) {
+  stop("T36c validation failed: event-identification robustness table is empty.")
+}
+
+if (nrow(event_episode_codes) != 45) {
+  stop("T36d validation failed: expected 45 event specifications in the episode-to-code map.")
+}
+
+key_export_names <- c(
+  "T16_Bitcoin_J303_Post2017",
+  "T35a_GPR_Bitcoin_Event_Significance_Correlation_Grid",
+  "T35b_GPR_Bitcoin_Event_Significance_NW_Grid",
+  "T41a_Bitcoin_J303_Event_Significance_Correlation_Grid",
+  "T41b_Bitcoin_J303_Event_Significance_NW_Grid",
+  "T36c_Event_Identification_Robustness",
+  "T36d_Event_Episode_to_Source_Codes"
+)
+
+key_export_dirs <- c(
+  core_table_dir,
+  rep(appendix_table_dir, 6)
+)
+
+key_export_check <- data.frame(
+  Table = key_export_names,
+  Rows = c(
+    nrow(t16_post2017),
+    nrow(t35a),
+    nrow(t35b),
+    nrow(t41a),
+    nrow(t41b),
+    nrow(e6$event.identification.robustness),
+    nrow(event_episode_codes)
+  ),
+  CSV_Exists = file.exists(
+    file.path(key_export_dirs, paste0(key_export_names, ".csv"))
+  ),
+  TSV_Exists = file.exists(
+    file.path(key_export_dirs, paste0(key_export_names, ".tsv"))
+  )
+)
+
+cat("\nKey export validation:\n")
+print(key_export_check, row.names = FALSE)
+
+if (!all(key_export_check$CSV_Exists) || !all(key_export_check$TSV_Exists)) {
+  stop("One or more required tables were not exported in both CSV and TSV formats.")
+}
 
 
 # 24. Results Summary
@@ -1670,6 +1859,9 @@ cat(
   ),
   "\n"
 )
+
+
+
 
 
 

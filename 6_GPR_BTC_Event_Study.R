@@ -536,15 +536,10 @@ significant.regression.grid
 
 
 # 9. EVENT IDENTIFICATION ROBUSTNESS
-# E-CODE OVERLAP ACROSS MEASURE-SMOOTHING COMBINATIONS
 
 event.identification.robustness <- event_overlap
 
 event.identification.robustness
-
-
-# Optional compact view showing only comparisons
-# where at least one underlying event is shared.
 
 event.identification.robustness.shared <- event_overlap %>%
   filter(

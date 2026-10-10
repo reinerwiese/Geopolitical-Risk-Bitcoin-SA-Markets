@@ -438,7 +438,7 @@ if (
 }
 
 
-# 13. TOP THREE RAW GPR PEAKS WITHIN EACH FULL SMOOTHED EVENT PERIOD
+# 13. TOP THREE RAW GPR PEAKS WITHIN EACH REGRESSION WINDOW
 
 get_top_raw_peaks <- function(event_results, data) {
   
@@ -448,8 +448,8 @@ get_top_raw_peaks <- function(event_results, data) {
       
       gpr_column <- event_results$Measure[i]
       
-      start_row <- event_results$Start_Row[i]
-      end_row <- event_results$End_Row[i]
+      start_row <- event_results$News_Start_Row[i]
+      end_row <- event_results$News_End_Row[i]
       
       raw_window <- data.frame(
         Date = data$Date[
@@ -472,7 +472,7 @@ get_top_raw_peaks <- function(event_results, data) {
       if (nrow(raw_window) < 3) {
         
         stop(
-          "One or more smoothed event periods contain fewer than three raw GPR observations."
+          "One or more regression windows contain fewer than three raw GPR observations."
         )
       }
       
@@ -507,25 +507,26 @@ event_results <- bind_cols(
   top_raw_peaks
 )
 
+
 if (
   any(
     event_results$Top_Raw_Date_1 <
-    event_results$Start_Date |
+    event_results$News_Start_Date |
     event_results$Top_Raw_Date_1 >
-    event_results$End_Date |
+    event_results$News_End_Date |
     event_results$Top_Raw_Date_2 <
-    event_results$Start_Date |
+    event_results$News_Start_Date |
     event_results$Top_Raw_Date_2 >
-    event_results$End_Date |
+    event_results$News_End_Date |
     event_results$Top_Raw_Date_3 <
-    event_results$Start_Date |
+    event_results$News_Start_Date |
     event_results$Top_Raw_Date_3 >
-    event_results$End_Date
+    event_results$News_End_Date
   )
 ) {
   
   stop(
-    "One or more top raw GPR peaks fall outside the full smoothed event period."
+    "One or more top raw GPR peaks fall outside the fixed regression window."
   )
 }
 
@@ -556,14 +557,49 @@ event_results <- event_results %>%
 
 # 15. IMPORT EXCEL EVENT AUDIT AND NAME EVENTS
 
-event_audit <- read_excel(
+raw_peak_audit <- read_excel(
   "GPR_Events.xlsx",
-  sheet = "45 events"
+  sheet = "135 Raw Peak Audit"
 ) %>%
   select(
     Event_ID,
-    Event_Codes = `Total Source_IDs`,
-    Event_Name = `event names`
+    Raw_Rank,
+    Source_ID,
+    Underlying_Event
+  ) %>%
+  arrange(
+    Event_ID,
+    Raw_Rank
+  )
+
+
+event_audit <- raw_peak_audit %>%
+  group_by(
+    Event_ID
+  ) %>%
+  summarise(
+    
+    Event_Codes = paste(
+      unique(
+        Source_ID[
+          !is.na(Source_ID) &
+            Source_ID != ""
+        ]
+      ),
+      collapse = "; "
+    ),
+    
+    Event_Name = paste(
+      unique(
+        Underlying_Event[
+          !is.na(Underlying_Event) &
+            Underlying_Event != ""
+        ]
+      ),
+      collapse = "; "
+    ),
+    
+    .groups = "drop"
   )
 
 
@@ -737,6 +773,7 @@ event_dates <- event_results %>%
     News_End_Date,
     everything()
   )
+
 
 
 

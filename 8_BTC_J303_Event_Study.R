@@ -15,6 +15,7 @@ data <- data0
 # Section A: Event Study Analysis
 ###############################################################
 
+
 # 3. EVENT STUDY FUNCTION
 
 run_event_study <- function(smoothing_window) {
@@ -405,16 +406,132 @@ event.window.comparison <- data.frame(
 event.window.comparison
 
 
-# 9. EVENT IDENTIFICATION ROBUSTNESS
-# E-CODE OVERLAP ACROSS MEASURE-SMOOTHING COMBINATIONS
+# 9. SIGNIFICANCE GRID BY MEASURE AND WINDOW
+
+
+# Significant correlations
+
+significant.correlation.grid <- data.frame(
+  
+  Smoothing_11 = c(
+    sum(
+      event.results_11$correlations$Measure == "GPRD" &
+        event.results_11$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_11$correlations$Measure == "GPRD_ACT" &
+        event.results_11$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_11$correlations$Measure == "GPRD_THREAT" &
+        event.results_11$correlations$Correlation_P_Value < 0.05
+    )
+  ),
+  
+  Smoothing_21 = c(
+    sum(
+      event.results_21$correlations$Measure == "GPRD" &
+        event.results_21$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_21$correlations$Measure == "GPRD_ACT" &
+        event.results_21$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_21$correlations$Measure == "GPRD_THREAT" &
+        event.results_21$correlations$Correlation_P_Value < 0.05
+    )
+  ),
+  
+  Smoothing_31 = c(
+    sum(
+      event.results_31$correlations$Measure == "GPRD" &
+        event.results_31$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_31$correlations$Measure == "GPRD_ACT" &
+        event.results_31$correlations$Correlation_P_Value < 0.05
+    ),
+    sum(
+      event.results_31$correlations$Measure == "GPRD_THREAT" &
+        event.results_31$correlations$Correlation_P_Value < 0.05
+    )
+  )
+)
+
+rownames(significant.correlation.grid) <- c(
+  "GPRD",
+  "GPRD_ACT",
+  "GPRD_THREAT"
+)
+
+significant.correlation.grid
+
+
+# Significant Newey-West regressions
+
+significant.regression.grid <- data.frame(
+  
+  Smoothing_11 = c(
+    sum(
+      event.results_11$regression$Measure == "GPRD" &
+        event.results_11$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_11$regression$Measure == "GPRD_ACT" &
+        event.results_11$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_11$regression$Measure == "GPRD_THREAT" &
+        event.results_11$regression$NeweyWest_P_Value < 0.05
+    )
+  ),
+  
+  Smoothing_21 = c(
+    sum(
+      event.results_21$regression$Measure == "GPRD" &
+        event.results_21$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_21$regression$Measure == "GPRD_ACT" &
+        event.results_21$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_21$regression$Measure == "GPRD_THREAT" &
+        event.results_21$regression$NeweyWest_P_Value < 0.05
+    )
+  ),
+  
+  Smoothing_31 = c(
+    sum(
+      event.results_31$regression$Measure == "GPRD" &
+        event.results_31$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_31$regression$Measure == "GPRD_ACT" &
+        event.results_31$regression$NeweyWest_P_Value < 0.05
+    ),
+    sum(
+      event.results_31$regression$Measure == "GPRD_THREAT" &
+        event.results_31$regression$NeweyWest_P_Value < 0.05
+    )
+  )
+)
+
+rownames(significant.regression.grid) <- c(
+  "GPRD",
+  "GPRD_ACT",
+  "GPRD_THREAT"
+)
+
+significant.regression.grid
+
+
+# 10. EVENT IDENTIFICATION ROBUSTNESS
 
 event.identification.robustness <- event_overlap
 
 event.identification.robustness
-
-
-# Optional compact view showing only comparisons
-# where at least one underlying event is shared.
 
 event.identification.robustness.shared <- event_overlap %>%
   filter(
@@ -422,3 +539,4 @@ event.identification.robustness.shared <- event_overlap %>%
   )
 
 event.identification.robustness.shared
+

@@ -250,6 +250,13 @@ run_event_study <- function(smoothing_window) {
         
         model <- event.models[[i]]
         
+        se <- event.nw[[i]][2, "Std. Error"]
+        
+        ci.critical <- qt(
+          0.975,
+          df = df.residual(model)
+        )
+        
         data.frame(
           Event_ID = events$Event_ID[i],
           Event = events$Event_Name[i],
@@ -262,6 +269,11 @@ run_event_study <- function(smoothing_window) {
             event.correlations$Correlation[i],
           GPR_Coefficient =
             coef(model)[2],
+          NeweyWest_SE = se,
+          CI_Lower =
+            coef(model)[2] - ci.critical * se,
+          CI_Upper =
+            coef(model)[2] + ci.critical * se,
           Adj_R2 =
             summary(model)$adj.r.squared,
           Residual_SE =
@@ -284,6 +296,24 @@ run_event_study <- function(smoothing_window) {
   event.regression$GPR_Coefficient <-
     signif(
       event.regression$GPR_Coefficient,
+      4
+    )
+  
+  event.regression$NeweyWest_SE <-
+    signif(
+      event.regression$NeweyWest_SE,
+      4
+    )
+  
+  event.regression$CI_Lower <-
+    signif(
+      event.regression$CI_Lower,
+      4
+    )
+  
+  event.regression$CI_Upper <-
+    signif(
+      event.regression$CI_Upper,
       4
     )
   

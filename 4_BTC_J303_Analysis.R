@@ -540,12 +540,13 @@ granger.summary
 ###############################################################
 
 # 12. Estimate post-2017 models
+# Lags were generated on the full sample before filtering.
+# This retains valid lag values for the first post-2017 observations.
 
-post2017.data <- data0 %>%
+post2017.data <- data %>%
   filter(
     Date >= as.Date("2018-01-01")
-  ) %>%
-  prepare_spillover()
+  )
 
 post2017.models <- fit_spillover_models(
   post2017.data
@@ -571,6 +572,103 @@ post2017.usd.nw <- lapply(
 )
 
 names(post2017.usd.nw) <- names(post2017.usd.models)
+
+
+# 12.2 Post-2017 incremental contribution of Bitcoin volatility
+# Restricted models include J303 volatility lags only.
+# Full models add contemporaneous Bitcoin volatility and its two lags.
+
+post2017.restricted.dynamic <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = post2017.data
+)
+
+post2017.full.dynamic <- post2017.models[["Dynamic 2 Lags"]]
+
+post2017.r2.restricted <- summary(
+  post2017.restricted.dynamic
+)$r.squared
+
+post2017.r2.full <- summary(
+  post2017.full.dynamic
+)$r.squared
+
+post2017.delta.r2 <- post2017.r2.full - post2017.r2.restricted
+
+post2017.partial.F.dynamic <- waldtest(
+  post2017.restricted.dynamic,
+  post2017.full.dynamic,
+  vcov = NeweyWest(
+    post2017.full.dynamic,
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+post2017.restricted.dynamic.usd <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = post2017.data
+)
+
+post2017.full.dynamic.usd <- post2017.usd.models[["Dynamic 2 Lags"]]
+
+post2017.r2.restricted.usd <- summary(
+  post2017.restricted.dynamic.usd
+)$r.squared
+
+post2017.r2.full.usd <- summary(
+  post2017.full.dynamic.usd
+)$r.squared
+
+post2017.delta.r2.usd <- post2017.r2.full.usd -
+  post2017.r2.restricted.usd
+
+post2017.partial.F.dynamic.usd <- waldtest(
+  post2017.restricted.dynamic.usd,
+  post2017.full.dynamic.usd,
+  vcov = NeweyWest(
+    post2017.full.dynamic.usd,
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+post2017.incremental.summary <- data.frame(
+  Bitcoin_Measure = c("ZAR", "USD"),
+  Restricted_R2 = c(
+    post2017.r2.restricted,
+    post2017.r2.restricted.usd
+  ),
+  Full_R2 = c(
+    post2017.r2.full,
+    post2017.r2.full.usd
+  ),
+  Delta_R2 = c(
+    post2017.delta.r2,
+    post2017.delta.r2.usd
+  ),
+  Partial_F_Statistic = c(
+    post2017.partial.F.dynamic$F[2],
+    post2017.partial.F.dynamic.usd$F[2]
+  ),
+  Partial_F_P_Value = c(
+    post2017.partial.F.dynamic$`Pr(>F)`[2],
+    post2017.partial.F.dynamic.usd$`Pr(>F)`[2]
+  )
+) %>%
+  mutate(
+    across(
+      c(Restricted_R2, Full_R2, Delta_R2, Partial_F_Statistic),
+      ~ round(.x, 4)
+    ),
+    Partial_F_P_Value = signif(Partial_F_P_Value, 4)
+  )
+
+post2017.incremental.summary
 
 
 # 13. Post-2017 regression summary
@@ -955,6 +1053,58 @@ dynamic.serial.summary <- data.frame(
 
 dynamic.serial.summary
 
+
+# 19. Combined incremental Bitcoin contribution summary
+# Joint Newey-West tests assess whether contemporaneous Bitcoin volatility
+# and its two lags are jointly zero, conditional on J303 volatility lags.
+
+incremental.comparison.summary <- bind_rows(
+  data.frame(
+    Bitcoin_Measure = "ZAR",
+    Sample = "Full sample",
+    Restricted_R2 = r2.restricted,
+    Full_R2 = r2.full,
+    Delta_R2 = delta.r2,
+    Partial_F_Statistic = partial.F.dynamic$F[2],
+    Partial_F_P_Value = partial.F.dynamic$`Pr(>F)`[2]
+  ),
+  data.frame(
+    Bitcoin_Measure = "USD",
+    Sample = "Full sample",
+    Restricted_R2 = r2.restricted.usd,
+    Full_R2 = r2.full.usd,
+    Delta_R2 = delta.r2.usd,
+    Partial_F_Statistic = partial.F.dynamic.usd$F[2],
+    Partial_F_P_Value = partial.F.dynamic.usd$`Pr(>F)`[2]
+  ),
+  data.frame(
+    Bitcoin_Measure = "ZAR",
+    Sample = "Post-2017",
+    Restricted_R2 = post2017.r2.restricted,
+    Full_R2 = post2017.r2.full,
+    Delta_R2 = post2017.delta.r2,
+    Partial_F_Statistic = post2017.partial.F.dynamic$F[2],
+    Partial_F_P_Value = post2017.partial.F.dynamic$`Pr(>F)`[2]
+  ),
+  data.frame(
+    Bitcoin_Measure = "USD",
+    Sample = "Post-2017",
+    Restricted_R2 = post2017.r2.restricted.usd,
+    Full_R2 = post2017.r2.full.usd,
+    Delta_R2 = post2017.delta.r2.usd,
+    Partial_F_Statistic = post2017.partial.F.dynamic.usd$F[2],
+    Partial_F_P_Value = post2017.partial.F.dynamic.usd$`Pr(>F)`[2]
+  )
+) %>%
+  mutate(
+    across(
+      c(Restricted_R2, Full_R2, Delta_R2, Partial_F_Statistic),
+      ~ round(.x, 4)
+    ),
+    Partial_F_P_Value = signif(Partial_F_P_Value, 4)
+  )
+
+incremental.comparison.summary
 
 
 

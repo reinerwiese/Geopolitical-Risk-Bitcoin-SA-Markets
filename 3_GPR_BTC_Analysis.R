@@ -575,11 +575,10 @@ component.dynamic.nw
 
 # 13. Prepare post-2017 data
 
-post2017.data <- data0_scaled %>%
+post2017.data <- data %>%
   filter(
     Date >= as.Date("2018-01-01")
-  ) %>%
-  add_lags()
+  )
 
 
 # 14. Estimate post-2017 models

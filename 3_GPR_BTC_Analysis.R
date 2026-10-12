@@ -10,18 +10,71 @@ library(tseries)
 
 # 2. Prepare data
 
+gpr_vars <- c("GPRD", "GPRD_ACT", "GPRD_THREAT")
+
+gpr_means <- vapply(
+  data0[gpr_vars],
+  mean,
+  numeric(1),
+  na.rm = TRUE
+)
+
+gpr_sds <- vapply(
+  data0[gpr_vars],
+  sd,
+  numeric(1),
+  na.rm = TRUE
+)
+
+if (any(!is.finite(gpr_sds)) || any(gpr_sds == 0)) {
+  stop("GPR standard deviations must be finite and non-zero.")
+}
+
+gpr_scaling_results <- data.frame(
+  Variable = gpr_vars,
+  Full_Sample_Mean = unname(gpr_means[gpr_vars]),
+  Full_Sample_SD = unname(gpr_sds[gpr_vars])
+)
+
+gpr_scaling_results
+
+
+# Create standardised GPR measures
+
+data0_scaled <- data0 %>%
+  mutate(
+    GPRD_z = (GPRD - gpr_means[["GPRD"]]) /
+      gpr_sds[["GPRD"]],
+    
+    GPRD_ACT_z = (GPRD_ACT - gpr_means[["GPRD_ACT"]]) /
+      gpr_sds[["GPRD_ACT"]],
+    
+    GPRD_THREAT_z = (GPRD_THREAT - gpr_means[["GPRD_THREAT"]]) /
+      gpr_sds[["GPRD_THREAT"]]
+  )
+
+
+# Generate lagged variables
+
 add_lags <- function(data) {
   data %>%
     mutate(
-      GPR_Lag1 = lag(GPRD, 1),
-      GPR_Lag2 = lag(GPRD, 2),
+      GPR_Lag1 = lag(GPRD_z, 1),
+      GPR_Lag2 = lag(GPRD_z, 2),
+      
       BTC_Volatility_Lag1 = lag(BTC_Volatility, 1),
-      BTC_Volatility_Lag2 = lag(BTC_Volatility, 2)
+      BTC_Volatility_Lag2 = lag(BTC_Volatility, 2),
+      
+      GPRD_ACT_Lag1 = lag(GPRD_ACT_z, 1),
+      GPRD_ACT_Lag2 = lag(GPRD_ACT_z, 2),
+      
+      GPRD_THREAT_Lag1 = lag(GPRD_THREAT_z, 1),
+      GPRD_THREAT_Lag2 = lag(GPRD_THREAT_z, 2)
     ) %>%
     na.omit()
 }
 
-data <- add_lags(data0)
+data <- add_lags(data0_scaled)
 
 
 ###############################################################
@@ -78,40 +131,46 @@ correlation.summary
 
 fit_gpr_models <- function(data) {
   list(
+    
     "Volatility: No Lag" = lm(
-      BTC_Volatility ~ GPRD,
+      BTC_Volatility ~ GPRD_z,
       data = data
     ),
     
     "Volatility: 1 Lag" = lm(
       BTC_Volatility ~
-        GPRD +
+        GPRD_z +
         GPR_Lag1,
       data = data
     ),
     
     "Volatility: 2 Lags" = lm(
       BTC_Volatility ~
-        GPRD +
+        GPRD_z +
         GPR_Lag1 +
         GPR_Lag2,
       data = data
     ),
     
-    "Dynamic: BTC Volatility Lag1 + GPR" = lm(
+    "Dynamic: BTC Volatility Lag1 + GPR Lags0-2" = lm(
       BTC_Volatility ~
         BTC_Volatility_Lag1 +
-        GPRD,
+        GPRD_z +
+        GPR_Lag1 +
+        GPR_Lag2,
       data = data
     ),
     
-    "Dynamic: BTC Volatility Lags1-2 + GPR" = lm(
+    "Dynamic: BTC Volatility Lags1-2 + GPR Lags0-2" = lm(
       BTC_Volatility ~
         BTC_Volatility_Lag1 +
         BTC_Volatility_Lag2 +
-        GPRD,
+        GPRD_z +
+        GPR_Lag1 +
+        GPR_Lag2,
       data = data
     )
+    
   )
 }
 
@@ -203,6 +262,7 @@ run_diagnostics <- function(model, dynamic = FALSE) {
   } else {
     
     results$Durbin_Watson <- dwtest(model)
+    
   }
   
   results
@@ -297,7 +357,9 @@ restricted.dynamic1 <- lm(
   data = data
 )
 
-full.dynamic1 <- models[["Dynamic: BTC Volatility Lag1 + GPR"]]
+full.dynamic1 <- models[[
+  "Dynamic: BTC Volatility Lag1 + GPR Lags0-2"
+]]
 
 restricted.dynamic2 <- lm(
   BTC_Volatility ~
@@ -306,7 +368,9 @@ restricted.dynamic2 <- lm(
   data = data
 )
 
-full.dynamic2 <- models[["Dynamic: BTC Volatility Lags1-2 + GPR"]]
+full.dynamic2 <- models[[
+  "Dynamic: BTC Volatility Lags1-2 + GPR Lags0-2"
+]]
 
 
 # Delta R-squared
@@ -321,7 +385,8 @@ delta_R2_dynamic1
 delta_R2_dynamic2
 
 
-# Partial F-tests using Newey-West covariance
+# Joint Newey-West Wald tests:
+# H0: contemporaneous GPR and its two lags are jointly zero
 
 partial_F_dynamic1 <- waldtest(
   restricted.dynamic1,
@@ -329,7 +394,8 @@ partial_F_dynamic1 <- waldtest(
   vcov = NeweyWest(
     full.dynamic1,
     prewhite = FALSE
-  )
+  ),
+  test = "F"
 )
 
 partial_F_dynamic2 <- waldtest(
@@ -338,7 +404,8 @@ partial_F_dynamic2 <- waldtest(
   vcov = NeweyWest(
     full.dynamic2,
     prewhite = FALSE
-  )
+  ),
+  test = "F"
 )
 
 partial_F_dynamic1
@@ -354,21 +421,22 @@ partial_F_dynamic2
 component.models <- list(
   
   "GPRD_ACT" = lm(
-    BTC_Volatility ~ GPRD_ACT,
+    BTC_Volatility ~ GPRD_ACT_z,
     data = data
   ),
   
   "GPRD_THREAT" = lm(
-    BTC_Volatility ~ GPRD_THREAT,
+    BTC_Volatility ~ GPRD_THREAT_z,
     data = data
   ),
   
   "GPRD_ACT + GPRD_THREAT" = lm(
     BTC_Volatility ~
-      GPRD_ACT +
-      GPRD_THREAT,
+      GPRD_ACT_z +
+      GPRD_THREAT_z,
     data = data
   )
+  
 )
 
 lapply(
@@ -381,21 +449,26 @@ lapply(
 
 component.dynamic.models <- list(
   
-  "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT" = lm(
+  "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2" = lm(
     BTC_Volatility ~
       BTC_Volatility_Lag1 +
       BTC_Volatility_Lag2 +
-      GPRD_ACT,
+      GPRD_ACT_z +
+      GPRD_ACT_Lag1 +
+      GPRD_ACT_Lag2,
     data = data
   ),
   
-  "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT" = lm(
+  "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2" = lm(
     BTC_Volatility ~
       BTC_Volatility_Lag1 +
       BTC_Volatility_Lag2 +
-      GPRD_THREAT,
+      GPRD_THREAT_z +
+      GPRD_THREAT_Lag1 +
+      GPRD_THREAT_Lag2,
     data = data
   )
+  
 )
 
 lapply(
@@ -418,14 +491,14 @@ restricted.component.dynamic <- lm(
 
 delta_R2_ACT <- summary(
   component.dynamic.models[[
-    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT"
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2"
   ]]
 )$r.squared -
   summary(restricted.component.dynamic)$r.squared
 
 delta_R2_THREAT <- summary(
   component.dynamic.models[[
-    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT"
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2"
   ]]
 )$r.squared -
   summary(restricted.component.dynamic)$r.squared
@@ -434,32 +507,38 @@ delta_R2_ACT
 delta_R2_THREAT
 
 
-# Partial F-tests using Newey-West covariance
+# Joint Newey-West Wald tests:
+# ACT: H0: ACT and its two lags are jointly zero
 
 partial_F_ACT <- waldtest(
   restricted.component.dynamic,
   component.dynamic.models[[
-    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT"
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2"
   ]],
   vcov = NeweyWest(
     component.dynamic.models[[
-      "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT"
+      "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2"
     ]],
     prewhite = FALSE
-  )
+  ),
+  test = "F"
 )
+
+
+# THREAT: H0: THREAT and its two lags are jointly zero
 
 partial_F_THREAT <- waldtest(
   restricted.component.dynamic,
   component.dynamic.models[[
-    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT"
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2"
   ]],
   vcov = NeweyWest(
     component.dynamic.models[[
-      "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT"
+      "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2"
     ]],
     prewhite = FALSE
-  )
+  ),
+  test = "F"
 )
 
 partial_F_ACT
@@ -478,13 +557,25 @@ names(component.nw) <- names(component.models)
 component.nw
 
 
+# Newey-West inference for dynamic component models
+
+component.dynamic.nw <- lapply(
+  component.dynamic.models,
+  run_nw
+)
+
+names(component.dynamic.nw) <- names(component.dynamic.models)
+
+component.dynamic.nw
+
+
 ###############################################################
 # Section D: Post-2017 Robustness Analysis
 ###############################################################
 
 # 13. Prepare post-2017 data
 
-post2017.data <- data0 %>%
+post2017.data <- data0_scaled %>%
   filter(
     Date >= as.Date("2018-01-01")
   ) %>%
@@ -502,6 +593,73 @@ post2017.nw <- lapply(
   run_nw
 )
 
+names(post2017.nw) <- names(post2017.models)
+
+
+# 14.1 Restricted post-2017 dynamic models
+
+post2017.restricted.dynamic1 <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1,
+  data = post2017.data
+)
+
+post2017.restricted.dynamic2 <- lm(
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2,
+  data = post2017.data
+)
+
+
+# 14.2 Post-2017 joint Newey-West Wald tests
+# H0: contemporaneous GPR and its two lags are jointly zero
+
+post2017.full.dynamic1 <- post2017.models[[
+  "Dynamic: BTC Volatility Lag1 + GPR Lags0-2"
+]]
+
+post2017.full.dynamic2 <- post2017.models[[
+  "Dynamic: BTC Volatility Lags1-2 + GPR Lags0-2"
+]]
+
+post2017.F_dynamic1 <- waldtest(
+  post2017.restricted.dynamic1,
+  post2017.full.dynamic1,
+  vcov = NeweyWest(
+    post2017.full.dynamic1,
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+post2017.F_dynamic2 <- waldtest(
+  post2017.restricted.dynamic2,
+  post2017.full.dynamic2,
+  vcov = NeweyWest(
+    post2017.full.dynamic2,
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+post2017.F_dynamic1
+post2017.F_dynamic2
+
+
+# Post-2017 change in R-squared from adding GPR terms
+
+post2017.delta_R2_dynamic1 <-
+  summary(post2017.full.dynamic1)$r.squared -
+  summary(post2017.restricted.dynamic1)$r.squared
+
+post2017.delta_R2_dynamic2 <-
+  summary(post2017.full.dynamic2)$r.squared -
+  summary(post2017.restricted.dynamic2)$r.squared
+
+post2017.delta_R2_dynamic1
+post2017.delta_R2_dynamic2
+
 
 # 15. Post-2017 robustness comparison
 
@@ -514,25 +672,70 @@ post2017.comparison <- data.frame(
     nobs
   ),
   
-  GPR_Coefficient = sapply(
+  GPR_Coefficient_pp = 100 * sapply(
     post2017.models,
     get_coef,
-    variable = "GPRD"
+    variable = "GPRD_z"
+  ),
+  
+  GPR_Lag1_Coefficient_pp = 100 * sapply(
+    post2017.models,
+    get_coef,
+    variable = "GPR_Lag1"
+  ),
+  
+  GPR_Lag2_Coefficient_pp = 100 * sapply(
+    post2017.models,
+    get_coef,
+    variable = "GPR_Lag2"
   ),
   
   GPR_NW_pvalue = sapply(
     post2017.nw,
     get_nw_p,
-    variable = "GPRD"
+    variable = "GPRD_z"
+  ),
+  
+  GPR_Lag1_NW_pvalue = sapply(
+    post2017.nw,
+    get_nw_p,
+    variable = "GPR_Lag1"
+  ),
+  
+  GPR_Lag2_NW_pvalue = sapply(
+    post2017.nw,
+    get_nw_p,
+    variable = "GPR_Lag2"
+  ),
+  
+  GPR_Joint_Wald_pvalue = c(
+    NA,
+    NA,
+    NA,
+    post2017.F_dynamic1$`Pr(>F)`[2],
+    post2017.F_dynamic2$`Pr(>F)`[2]
+  ),
+  
+  Delta_R2 = c(
+    NA,
+    NA,
+    NA,
+    post2017.delta_R2_dynamic1,
+    post2017.delta_R2_dynamic2
   )
+  
 ) %>%
   mutate(
-    GPR_Coefficient = signif(
-      GPR_Coefficient,
-      4
+    across(
+      contains("Coefficient"),
+      ~ signif(.x, 4)
     ),
-    GPR_NW_pvalue = signif(
-      GPR_NW_pvalue,
+    across(
+      contains("pvalue"),
+      ~ signif(.x, 4)
+    ),
+    Delta_R2 = round(
+      Delta_R2,
       4
     )
   )
@@ -552,19 +755,19 @@ regression.summary <- data.frame(
   
   Model = names(models),
   
-  GPR_Coefficient = sapply(
+  GPR_Coefficient_pp = 100 * sapply(
     models,
     get_coef,
-    variable = "GPRD"
+    variable = "GPRD_z"
   ),
   
-  GPR_Lag1_Coefficient = sapply(
+  GPR_Lag1_Coefficient_pp = 100 * sapply(
     models,
     get_coef,
     variable = "GPR_Lag1"
   ),
   
-  GPR_Lag2_Coefficient = sapply(
+  GPR_Lag2_Coefficient_pp = 100 * sapply(
     models,
     get_coef,
     variable = "GPR_Lag2"
@@ -590,7 +793,7 @@ regression.summary <- data.frame(
   GPR_NW_pvalue = sapply(
     nw.models,
     get_nw_p,
-    variable = "GPRD"
+    variable = "GPRD_z"
   ),
   
   GPR_Lag1_NW_pvalue = sapply(
@@ -632,6 +835,7 @@ regression.summary <- data.frame(
     partial_F_dynamic1$`Pr(>F)`[2],
     partial_F_dynamic2$`Pr(>F)`[2]
   )
+  
 ) %>%
   mutate(
     across(
@@ -663,16 +867,16 @@ gpr.component.summary <- data.frame(
   
   Model = names(component.models),
   
-  GPRD_ACT_Coefficient = sapply(
+  GPRD_ACT_Coefficient_pp = 100 * sapply(
     component.models,
     get_coef,
-    variable = "GPRD_ACT"
+    variable = "GPRD_ACT_z"
   ),
   
-  GPRD_THREAT_Coefficient = sapply(
+  GPRD_THREAT_Coefficient_pp = 100 * sapply(
     component.models,
     get_coef,
-    variable = "GPRD_THREAT"
+    variable = "GPRD_THREAT_z"
   ),
   
   Adj_R2 = sapply(
@@ -683,14 +887,15 @@ gpr.component.summary <- data.frame(
   GPRD_ACT_NW_pvalue = sapply(
     component.nw,
     get_nw_p,
-    variable = "GPRD_ACT"
+    variable = "GPRD_ACT_z"
   ),
   
   GPRD_THREAT_NW_pvalue = sapply(
     component.nw,
     get_nw_p,
-    variable = "GPRD_THREAT"
+    variable = "GPRD_THREAT_z"
   )
+  
 ) %>%
   mutate(
     across(
@@ -718,14 +923,36 @@ gpr.component.dynamic.summary <- data.frame(
   
   Model = names(component.dynamic.models),
   
-  GPR_Coefficient = c(
+  GPR_Coefficient_pp = 100 * c(
     get_coef(
       component.dynamic.models[[1]],
-      "GPRD_ACT"
+      "GPRD_ACT_z"
     ),
     get_coef(
       component.dynamic.models[[2]],
-      "GPRD_THREAT"
+      "GPRD_THREAT_z"
+    )
+  ),
+  
+  GPR_Lag1_Coefficient_pp = 100 * c(
+    get_coef(
+      component.dynamic.models[[1]],
+      "GPRD_ACT_Lag1"
+    ),
+    get_coef(
+      component.dynamic.models[[2]],
+      "GPRD_THREAT_Lag1"
+    )
+  ),
+  
+  GPR_Lag2_Coefficient_pp = 100 * c(
+    get_coef(
+      component.dynamic.models[[1]],
+      "GPRD_ACT_Lag2"
+    ),
+    get_coef(
+      component.dynamic.models[[2]],
+      "GPRD_THREAT_Lag2"
     )
   ),
   
@@ -741,12 +968,34 @@ gpr.component.dynamic.summary <- data.frame(
   
   NW_pvalue = c(
     get_nw_p(
-      run_nw(component.dynamic.models[[1]]),
-      "GPRD_ACT"
+      component.dynamic.nw[[1]],
+      "GPRD_ACT_z"
     ),
     get_nw_p(
-      run_nw(component.dynamic.models[[2]]),
-      "GPRD_THREAT"
+      component.dynamic.nw[[2]],
+      "GPRD_THREAT_z"
+    )
+  ),
+  
+  NW_Lag1_pvalue = c(
+    get_nw_p(
+      component.dynamic.nw[[1]],
+      "GPRD_ACT_Lag1"
+    ),
+    get_nw_p(
+      component.dynamic.nw[[2]],
+      "GPRD_THREAT_Lag1"
+    )
+  ),
+  
+  NW_Lag2_pvalue = c(
+    get_nw_p(
+      component.dynamic.nw[[1]],
+      "GPRD_ACT_Lag2"
+    ),
+    get_nw_p(
+      component.dynamic.nw[[2]],
+      "GPRD_THREAT_Lag2"
     )
   ),
   
@@ -754,11 +1003,12 @@ gpr.component.dynamic.summary <- data.frame(
     partial_F_ACT$`Pr(>F)`[2],
     partial_F_THREAT$`Pr(>F)`[2]
   )
+  
 ) %>%
   mutate(
-    GPR_Coefficient = signif(
-      GPR_Coefficient,
-      4
+    across(
+      contains("Coefficient"),
+      ~ signif(.x, 4)
     ),
     Adj_R2 = round(
       Adj_R2,
@@ -768,13 +1018,9 @@ gpr.component.dynamic.summary <- data.frame(
       Delta_R2,
       4
     ),
-    NW_pvalue = signif(
-      NW_pvalue,
-      4
-    ),
-    Partial_F_pvalue = signif(
-      Partial_F_pvalue,
-      4
+    across(
+      contains("pvalue"),
+      ~ signif(.x, 4)
     )
   )
 

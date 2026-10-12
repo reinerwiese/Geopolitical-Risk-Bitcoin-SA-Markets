@@ -14,6 +14,8 @@ prepare_spillover <- function(data) {
     mutate(
       BTC_Volatility_Lag1 = lag(BTC_Volatility, 1),
       BTC_Volatility_Lag2 = lag(BTC_Volatility, 2),
+      BTC_Volatility_USD_Lag1 = lag(BTC_Volatility_USD, 1),
+      BTC_Volatility_USD_Lag2 = lag(BTC_Volatility_USD, 2),
       J303_Volatility_Lag1 = lag(J303_Volatility, 1),
       J303_Volatility_Lag2 = lag(J303_Volatility, 2)
     ) %>%
@@ -53,6 +55,44 @@ fit_spillover_models <- function(data) {
     )
   )
 }
+
+
+# USD Bitcoin volatility models
+
+fit_spillover_models_usd <- function(data) {
+  list(
+    "No Lag" = lm(
+      J303_Volatility ~ BTC_Volatility_USD,
+      data = data
+    ),
+    
+    "1 Lag" = lm(
+      J303_Volatility ~
+        BTC_Volatility_USD +
+        BTC_Volatility_USD_Lag1,
+      data = data
+    ),
+    
+    "2 Lags" = lm(
+      J303_Volatility ~
+        BTC_Volatility_USD +
+        BTC_Volatility_USD_Lag1 +
+        BTC_Volatility_USD_Lag2,
+      data = data
+    ),
+    
+    "Dynamic 2 Lags" = lm(
+      J303_Volatility ~
+        J303_Volatility_Lag1 +
+        J303_Volatility_Lag2 +
+        BTC_Volatility_USD +
+        BTC_Volatility_USD_Lag1 +
+        BTC_Volatility_USD_Lag2,
+      data = data
+    )
+  )
+}
+
 
 run_nw <- function(model) {
   coeftest(
@@ -145,7 +185,7 @@ ggplot(
 # Section B: Volatility Regression Analysis
 ###############################################################
 
-# 5. Estimate models
+# 5. Estimate ZAR models
 
 models <- fit_spillover_models(data)
 
@@ -165,6 +205,25 @@ nw.models <- lapply(
 names(nw.models) <- names(models)
 
 nw.models
+
+
+# 6.1 Estimate USD models
+
+usd.models <- fit_spillover_models_usd(data)
+
+lapply(
+  usd.models,
+  summary
+)
+
+usd.nw <- lapply(
+  usd.models,
+  run_nw
+)
+
+names(usd.nw) <- names(usd.models)
+
+usd.nw
 
 
 # 7. Model diagnostics
@@ -283,6 +342,64 @@ incremental.summary <- data.frame(
 incremental.summary
 
 
+# 9.2 USD dynamic model
+
+restricted.dynamic.usd <- lm(
+  J303_Volatility ~
+    J303_Volatility_Lag1 +
+    J303_Volatility_Lag2,
+  data = data
+)
+
+full.dynamic.usd <- usd.models[["Dynamic 2 Lags"]]
+
+r2.restricted.usd <- summary(
+  restricted.dynamic.usd
+)$r.squared
+
+r2.full.usd <- summary(
+  full.dynamic.usd
+)$r.squared
+
+delta.r2.usd <- r2.full.usd - r2.restricted.usd
+
+partial.F.dynamic.usd <- waldtest(
+  restricted.dynamic.usd,
+  full.dynamic.usd,
+  vcov = NeweyWest(
+    full.dynamic.usd,
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+incremental.summary.usd <- data.frame(
+  Bitcoin_Measure = "USD",
+  Restricted_R2 = round(
+    r2.restricted.usd,
+    4
+  ),
+  Full_R2 = round(
+    r2.full.usd,
+    4
+  ),
+  Delta_R2 = round(
+    delta.r2.usd,
+    4
+  ),
+  Partial_F_Statistic = round(
+    partial.F.dynamic.usd$F[2],
+    4
+  ),
+  Partial_F_P_Value = signif(
+    partial.F.dynamic.usd$`Pr(>F)`[2],
+    4
+  )
+)
+
+incremental.summary.usd
+
+
 # 10. Dynamic model serial correlation
 
 bg.dynamic.2 <- bgtest(
@@ -297,45 +414,123 @@ bg.dynamic.2
 # Section C: Granger Causality
 ###############################################################
 
-# 11. Granger causality
+# 11. Newey-West Granger causality tests
 
-run_granger <- function(data) {
+run_granger_nw <- function(
+    data,
+    btc_var,
+    btc_lag1,
+    btc_lag2,
+    measure
+) {
   
-  btc.j303 <- grangertest(
-    J303_Volatility ~ BTC_Volatility,
-    order = 2,
+  restricted.j303 <- lm(
+    J303_Volatility ~
+      J303_Volatility_Lag1 +
+      J303_Volatility_Lag2,
     data = data
   )
   
-  j303.btc <- grangertest(
-    BTC_Volatility ~ J303_Volatility,
-    order = 2,
+  full.j303 <- lm(
+    as.formula(
+      paste(
+        "J303_Volatility ~ J303_Volatility_Lag1 +",
+        "J303_Volatility_Lag2 +",
+        btc_lag1, "+", btc_lag2
+      )
+    ),
     data = data
   )
+  
+  test.btc.to.j303 <- waldtest(
+    restricted.j303,
+    full.j303,
+    vcov = NeweyWest(
+      full.j303,
+      prewhite = FALSE
+    ),
+    test = "F"
+  )
+  
+  
+  restricted.btc <- lm(
+    as.formula(
+      paste(
+        btc_var, "~",
+        btc_lag1, "+", btc_lag2
+      )
+    ),
+    data = data
+  )
+  
+  full.btc <- lm(
+    as.formula(
+      paste(
+        btc_var, "~",
+        btc_lag1, "+", btc_lag2, "+",
+        "J303_Volatility_Lag1 + J303_Volatility_Lag2"
+      )
+    ),
+    data = data
+  )
+  
+  test.j303.to.btc <- waldtest(
+    restricted.btc,
+    full.btc,
+    vcov = NeweyWest(
+      full.btc,
+      prewhite = FALSE
+    ),
+    test = "F"
+  )
+  
   
   data.frame(
+    Bitcoin_Measure = measure,
+    
     Direction = c(
       "Bitcoin Volatility -> J303 Volatility",
       "J303 Volatility -> Bitcoin Volatility"
     ),
+    
     F_Statistic = round(
       c(
-        btc.j303$F[2],
-        j303.btc$F[2]
+        test.btc.to.j303$F[2],
+        test.j303.to.btc$F[2]
       ),
       4
     ),
+    
     P_Value = signif(
       c(
-        btc.j303$`Pr(>F)`[2],
-        j303.btc$`Pr(>F)`[2]
+        test.btc.to.j303$`Pr(>F)`[2],
+        test.j303.to.btc$`Pr(>F)`[2]
       ),
       4
     )
   )
 }
 
-granger.summary <- run_granger(data)
+
+granger.summary <- bind_rows(
+  
+  run_granger_nw(
+    data,
+    "BTC_Volatility",
+    "BTC_Volatility_Lag1",
+    "BTC_Volatility_Lag2",
+    "ZAR"
+  ),
+  
+  run_granger_nw(
+    data,
+    "BTC_Volatility_USD",
+    "BTC_Volatility_USD_Lag1",
+    "BTC_Volatility_USD_Lag2",
+    "USD"
+  )
+  
+)
 
 granger.summary
 
@@ -362,6 +557,20 @@ post2017.nw <- lapply(
 )
 
 names(post2017.nw) <- names(post2017.models)
+
+
+# 12.1 Post-2017 USD models
+
+post2017.usd.models <- fit_spillover_models_usd(
+  post2017.data
+)
+
+post2017.usd.nw <- lapply(
+  post2017.usd.models,
+  run_nw
+)
+
+names(post2017.usd.nw) <- names(post2017.usd.models)
 
 
 # 13. Post-2017 regression summary
@@ -431,10 +640,93 @@ rownames(post2017.summary) <- NULL
 post2017.summary
 
 
+# 13.1 Post-2017 USD regression summary
+
+post2017.usd.summary <- data.frame(
+  
+  Model = names(post2017.usd.models),
+  
+  BTC_USD_Coefficient = sapply(
+    post2017.usd.models,
+    get_coef,
+    variable = "BTC_Volatility_USD"
+  ),
+  
+  BTC_USD_Lag1_Coefficient = sapply(
+    post2017.usd.models,
+    get_coef,
+    variable = "BTC_Volatility_USD_Lag1"
+  ),
+  
+  BTC_USD_Lag2_Coefficient = sapply(
+    post2017.usd.models,
+    get_coef,
+    variable = "BTC_Volatility_USD_Lag2"
+  ),
+  
+  Adj_R2 = sapply(
+    post2017.usd.models,
+    function(x) summary(x)$adj.r.squared
+  ),
+  
+  BTC_USD_NW_pvalue = sapply(
+    post2017.usd.nw,
+    get_nw_p,
+    variable = "BTC_Volatility_USD"
+  ),
+  
+  BTC_USD_Lag1_NW_pvalue = sapply(
+    post2017.usd.nw,
+    get_nw_p,
+    variable = "BTC_Volatility_USD_Lag1"
+  ),
+  
+  BTC_USD_Lag2_NW_pvalue = sapply(
+    post2017.usd.nw,
+    get_nw_p,
+    variable = "BTC_Volatility_USD_Lag2"
+  )
+) %>%
+  mutate(
+    across(
+      contains("Coefficient"),
+      ~ signif(.x, 4)
+    ),
+    Adj_R2 = round(
+      Adj_R2,
+      4
+    ),
+    across(
+      contains("pvalue"),
+      ~ signif(.x, 4)
+    )
+  )
+
+rownames(post2017.usd.summary) <- NULL
+
+post2017.usd.summary
+
+
 # 14. Post-2017 Granger causality
 
-granger.post2017.summary <- run_granger(
-  post2017.data
+granger.post2017.summary <- bind_rows(
+  
+  run_granger_nw(
+    post2017.data,
+    "BTC_Volatility",
+    "BTC_Volatility_Lag1",
+    "BTC_Volatility_Lag2",
+    "ZAR"
+  ),
+  
+  run_granger_nw(
+    post2017.data,
+    "BTC_Volatility_USD",
+    "BTC_Volatility_USD_Lag1",
+    "BTC_Volatility_USD_Lag2",
+    "USD"
+  )
+  
 )
 
 granger.post2017.summary
@@ -444,7 +736,7 @@ granger.post2017.summary
 # Section E: Summary Tables
 ###############################################################
 
-# 15. Regression summary
+# 15. ZAR regression summary
 
 regression.summary <- data.frame(
   
@@ -523,6 +815,85 @@ rownames(regression.summary) <- NULL
 regression.summary
 
 
+# 15.1 USD regression summary
+
+usd.regression.summary <- data.frame(
+  
+  Model = names(usd.models),
+  
+  BTC_USD_Coefficient = sapply(
+    usd.models,
+    get_coef,
+    variable = "BTC_Volatility_USD"
+  ),
+  
+  BTC_USD_Lag1_Coefficient = sapply(
+    usd.models,
+    get_coef,
+    variable = "BTC_Volatility_USD_Lag1"
+  ),
+  
+  BTC_USD_Lag2_Coefficient = sapply(
+    usd.models,
+    get_coef,
+    variable = "BTC_Volatility_USD_Lag2"
+  ),
+  
+  J303_Lag1_Coefficient = sapply(
+    usd.models,
+    get_coef,
+    variable = "J303_Volatility_Lag1"
+  ),
+  
+  J303_Lag2_Coefficient = sapply(
+    usd.models,
+    get_coef,
+    variable = "J303_Volatility_Lag2"
+  ),
+  
+  Adj_R2 = sapply(
+    usd.models,
+    function(x) summary(x)$adj.r.squared
+  ),
+  
+  BTC_USD_NW_pvalue = sapply(
+    usd.nw,
+    get_nw_p,
+    variable = "BTC_Volatility_USD"
+  ),
+  
+  BTC_USD_Lag1_NW_pvalue = sapply(
+    usd.nw,
+    get_nw_p,
+    variable = "BTC_Volatility_USD_Lag1"
+  ),
+  
+  BTC_USD_Lag2_NW_pvalue = sapply(
+    usd.nw,
+    get_nw_p,
+    variable = "BTC_Volatility_USD_Lag2"
+  )
+) %>%
+  mutate(
+    across(
+      contains("Coefficient"),
+      ~ signif(.x, 4)
+    ),
+    Adj_R2 = round(
+      Adj_R2,
+      4
+    ),
+    across(
+      contains("pvalue"),
+      ~ signif(.x, 4)
+    )
+  )
+
+rownames(usd.regression.summary) <- NULL
+
+usd.regression.summary
+
+
 # 16. Diagnostic summary
 
 diagnostic.summary <- data.frame(
@@ -561,9 +932,11 @@ rownames(diagnostic.summary) <- NULL
 diagnostic.summary
 
 
-# 17. Incremental Bitcoin contribution summary
+# 17. Incremental Bitcoin contribution summaries
 
 incremental.summary
+
+incremental.summary.usd
 
 
 # 18. Dynamic serial correlation summary

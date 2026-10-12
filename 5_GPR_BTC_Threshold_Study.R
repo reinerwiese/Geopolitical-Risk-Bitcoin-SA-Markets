@@ -10,17 +10,44 @@ library(tseries)
 
 data <- data0
 
+# Preserve raw GPR values for descriptives and plots.
+data$GPRD_RAW <- data$GPRD
+data$GPRD_ACT_RAW <- data$GPRD_ACT
+data$GPRD_THREAT_RAW <- data$GPRD_THREAT
+
+# Standardise using full-sample means and standard deviations.
+# Regime classifications remain those created in Script 0 from raw GPR values.
+data$GPRD <- as.numeric(scale(data$GPRD))
+data$GPRD_ACT <- as.numeric(scale(data$GPRD_ACT))
+data$GPRD_THREAT <- as.numeric(scale(data$GPRD_THREAT))
+
 
 # HELPER FUNCTIONS
 
 nw_test <- function(model) {
-  coeftest(
+  result <- coeftest(
     model,
     vcov = NeweyWest(
       model,
       prewhite = FALSE
     )
   )
+  
+  # Report coefficients and standard errors for volatility-level effects
+  # in percentage points of daily conditional volatility. Keep the lagged
+  # dependent-variable coefficients in their original dimensionless units.
+  volatility.terms <- !grepl(
+    "^BTC_Volatility_Lag",
+    rownames(result)
+  )
+  
+  result[volatility.terms, "Estimate"] <-
+    result[volatility.terms, "Estimate"] * 100
+  
+  result[volatility.terms, "Std. Error"] <-
+    result[volatility.terms, "Std. Error"] * 100
+  
+  result
 }
 
 model_diagnostics <- function(model) {
@@ -106,8 +133,8 @@ regime.summary <- data.frame(
   ),
   
   Mean_GPR = c(
-    mean(low.gpr$GPRD),
-    mean(high.gpr$GPRD)
+    mean(low.gpr$GPRD_RAW),
+    mean(high.gpr$GPRD_RAW)
   ),
   
   Observations = c(
@@ -131,7 +158,7 @@ regime.summary
 ggplot(
   low.gpr,
   aes(
-    x = GPRD,
+    x = GPRD_RAW,
     y = BTC_Volatility
   )
 ) +
@@ -156,7 +183,7 @@ ggplot(
 ggplot(
   high.gpr,
   aes(
-    x = GPRD,
+    x = GPRD_RAW,
     y = BTC_Volatility
   )
 ) +
@@ -360,6 +387,7 @@ model.high.dynamic <- lm(
   data = high.gpr
 )
 
+
 # 10a. Restricted models: Bitcoin volatility persistence only
 
 restricted.low.dynamic <- lm(
@@ -375,6 +403,7 @@ restricted.high.dynamic <- lm(
     BTC_Volatility_Lag2,
   data = high.gpr
 )
+
 
 # 10b. Incremental contribution of GPR
 
@@ -397,6 +426,7 @@ r2.full.high <- summary(
 )$r.squared
 
 delta.r2.high <- r2.full.high - r2.restricted.high
+
 
 # 10c. Partial F-tests using Newey-West covariance
 
@@ -552,6 +582,7 @@ nw.high.dynamic
 
 
 # 13. Dynamic model comparison
+# GPR coefficients are percentage-point changes in daily volatility per one-SD increase.
 
 dynamic.comparison <- data.frame(
   
@@ -577,8 +608,8 @@ dynamic.comparison <- data.frame(
   ),
   
   GPRD = c(
-    coef(model.low.dynamic)["GPRD"],
-    coef(model.high.dynamic)["GPRD"]
+    100 * coef(model.low.dynamic)["GPRD"],
+    100 * coef(model.high.dynamic)["GPRD"]
   ),
   
   GPRD_NW_p = c(
@@ -593,8 +624,8 @@ dynamic.comparison <- data.frame(
   ),
   
   GPRD_Lag1 = c(
-    coef(model.low.dynamic)["GPRD_Lag1"],
-    coef(model.high.dynamic)["GPRD_Lag1"]
+    100 * coef(model.low.dynamic)["GPRD_Lag1"],
+    100 * coef(model.high.dynamic)["GPRD_Lag1"]
   ),
   
   GPRD_Lag1_NW_p = c(
@@ -609,8 +640,8 @@ dynamic.comparison <- data.frame(
   ),
   
   GPRD_Lag2 = c(
-    coef(model.low.dynamic)["GPRD_Lag2"],
-    coef(model.high.dynamic)["GPRD_Lag2"]
+    100 * coef(model.low.dynamic)["GPRD_Lag2"],
+    100 * coef(model.high.dynamic)["GPRD_Lag2"]
   ),
   
   GPRD_Lag2_NW_p = c(
@@ -680,7 +711,10 @@ dynamic.comparison
 # 14. GPRD interaction model
 
 interaction.model <- lm(
-  BTC_Volatility ~ GPRD * GPR_Regime,
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2 +
+    GPRD * GPR_Regime,
   data = data
 )
 
@@ -694,9 +728,9 @@ interaction.nw <- nw_test(
 interaction.nw
 
 
-# 16. Interaction model summary
+# 16. GPRD interaction model summary
 
-interaction.summary <- data.frame(
+gprd.interaction.summary <- data.frame(
   
   Variable = c(
     "GPR",
@@ -751,25 +785,26 @@ interaction.summary <- data.frame(
   
 )
 
-interaction.summary$Estimate <-
+gprd.interaction.summary$Estimate <-
   signif(
-    interaction.summary$Estimate,
+    gprd.interaction.summary$Estimate,
     4
   )
 
-interaction.summary$Robust_SE <-
+gprd.interaction.summary$Robust_SE <-
   signif(
-    interaction.summary$Robust_SE,
+    gprd.interaction.summary$Robust_SE,
     4
   )
 
-interaction.summary$P_Value <-
+gprd.interaction.summary$P_Value <-
   signif(
-    interaction.summary$P_Value,
+    gprd.interaction.summary$P_Value,
     4
   )
 
-interaction.summary
+gprd.interaction.summary
+
 
 ###############################################################
 # Section B: Alternative GPR Regime Analysis
@@ -819,6 +854,7 @@ model.high.act.dynamic <- lm(
   data = high.act
 )
 
+
 # 22a. ACT restricted models: Bitcoin persistence only
 
 restricted.low.act.dynamic <- lm(
@@ -835,6 +871,7 @@ restricted.high.act.dynamic <- lm(
   data = high.act
 )
 
+
 # 22b. ACT incremental GPR contribution
 
 act.r2.restricted <- c(
@@ -848,6 +885,7 @@ act.r2.full <- c(
 )
 
 act.delta.r2 <- act.r2.full - act.r2.restricted
+
 
 # 22c. ACT partial F-tests using Newey-West covariance
 
@@ -981,18 +1019,18 @@ act.dynamic.comparison <- data.frame(
   ),
   
   GPR_Lag0 = c(
-    coef(model.low.act.dynamic)["GPRD_ACT"],
-    coef(model.high.act.dynamic)["GPRD_ACT"]
+    100 * coef(model.low.act.dynamic)["GPRD_ACT"],
+    100 * coef(model.high.act.dynamic)["GPRD_ACT"]
   ),
   
   GPR_Lag1 = c(
-    coef(model.low.act.dynamic)["GPRD_ACT_Lag1"],
-    coef(model.high.act.dynamic)["GPRD_ACT_Lag1"]
+    100 * coef(model.low.act.dynamic)["GPRD_ACT_Lag1"],
+    100 * coef(model.high.act.dynamic)["GPRD_ACT_Lag1"]
   ),
   
   GPR_Lag2 = c(
-    coef(model.low.act.dynamic)["GPRD_ACT_Lag2"],
-    coef(model.high.act.dynamic)["GPRD_ACT_Lag2"]
+    100 * coef(model.low.act.dynamic)["GPRD_ACT_Lag2"],
+    100 * coef(model.high.act.dynamic)["GPRD_ACT_Lag2"]
   ),
   
   Adj_R2 = c(
@@ -1027,7 +1065,10 @@ act.dynamic.comparison
 # 26. GPRD_ACT interaction model
 
 interaction.act.model <- lm(
-  BTC_Volatility ~ GPRD_ACT * GPRD_ACT_Regime,
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2 +
+    GPRD_ACT * GPRD_ACT_Regime,
   data = data
 )
 
@@ -1073,6 +1114,7 @@ model.high.threat.dynamic <- lm(
   data = high.threat
 )
 
+
 # 29a. THREAT restricted models: Bitcoin persistence only
 
 restricted.low.threat.dynamic <- lm(
@@ -1089,6 +1131,7 @@ restricted.high.threat.dynamic <- lm(
   data = high.threat
 )
 
+
 # 29b. THREAT incremental GPR contribution
 
 threat.r2.restricted <- c(
@@ -1102,6 +1145,7 @@ threat.r2.full <- c(
 )
 
 threat.delta.r2 <- threat.r2.full - threat.r2.restricted
+
 
 # 29c. THREAT partial F-tests using Newey-West covariance
 
@@ -1235,18 +1279,18 @@ threat.dynamic.comparison <- data.frame(
   ),
   
   GPR_Lag0 = c(
-    coef(model.low.threat.dynamic)["GPRD_THREAT"],
-    coef(model.high.threat.dynamic)["GPRD_THREAT"]
+    100 * coef(model.low.threat.dynamic)["GPRD_THREAT"],
+    100 * coef(model.high.threat.dynamic)["GPRD_THREAT"]
   ),
   
   GPR_Lag1 = c(
-    coef(model.low.threat.dynamic)["GPRD_THREAT_Lag1"],
-    coef(model.high.threat.dynamic)["GPRD_THREAT_Lag1"]
+    100 * coef(model.low.threat.dynamic)["GPRD_THREAT_Lag1"],
+    100 * coef(model.high.threat.dynamic)["GPRD_THREAT_Lag1"]
   ),
   
   GPR_Lag2 = c(
-    coef(model.low.threat.dynamic)["GPRD_THREAT_Lag2"],
-    coef(model.high.threat.dynamic)["GPRD_THREAT_Lag2"]
+    100 * coef(model.low.threat.dynamic)["GPRD_THREAT_Lag2"],
+    100 * coef(model.high.threat.dynamic)["GPRD_THREAT_Lag2"]
   ),
   
   Adj_R2 = c(
@@ -1281,7 +1325,10 @@ threat.dynamic.comparison
 # 32. GPRD_THREAT interaction model
 
 interaction.threat.model <- lm(
-  BTC_Volatility ~ GPRD_THREAT * GPRD_THREAT_Regime,
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2 +
+    GPRD_THREAT * GPRD_THREAT_Regime,
   data = data
 )
 
@@ -1307,7 +1354,10 @@ post2017.data <- subset(
 # 34. Post-2017 ACT interaction model
 
 post2017.act.interaction <- lm(
-  BTC_Volatility ~ GPRD_ACT * GPRD_ACT_Regime,
+  BTC_Volatility ~
+    BTC_Volatility_Lag1 +
+    BTC_Volatility_Lag2 +
+    GPRD_ACT * GPRD_ACT_Regime,
   data = post2017.data
 )
 
@@ -1411,6 +1461,7 @@ threat.dynamic.comparison
 dynamic.incremental.r2
 act.incremental.r2
 threat.incremental.r2
+
 
 # 38. Interaction results
 

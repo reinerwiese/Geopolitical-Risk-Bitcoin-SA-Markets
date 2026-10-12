@@ -637,6 +637,7 @@ gprd.incremental.r2 <- gprd.incremental.r2[
 
 gprd.incremental.r2
 
+
 # 14a. Restricted dynamic models for partial F-tests
 
 restricted.low.gprd.dynamic <- lm(
@@ -730,6 +731,7 @@ gprd.incremental.r2.partial$Delta_R2 <-
   )
 
 gprd.incremental.r2.partial
+
 
 ###############################################################
 # Section D: Dynamic GPRD Interaction Model
@@ -1021,6 +1023,7 @@ act.incremental.r2 <- act.incremental.r2[
 
 act.incremental.r2
 
+
 # 27a. Restricted ACT dynamic models for partial F-tests
 
 restricted.low.act.dynamic <- lm(
@@ -1228,6 +1231,7 @@ threat.incremental.r2 <- threat.incremental.r2[
 
 threat.incremental.r2
 
+
 # 32a. Restricted THREAT dynamic models for partial F-tests
 
 restricted.low.threat.dynamic <- lm(
@@ -1321,6 +1325,7 @@ threat.incremental.r2.partial$Delta_R2 <-
   )
 
 threat.incremental.r2.partial
+
 
 ###############################################################
 # Section F: Alternative GPR Interaction Models
@@ -1699,4 +1704,154 @@ act.interaction.summary
 # 48. THREAT interaction results
 
 threat.interaction.summary
+
+
+###############################################################
+# Section I: Formal Full-Sample Regime Difference Tests
+###############################################################
+
+# The regime-split regressions above are retained for descriptive
+# comparisons. Because filtering into regimes creates gaps in the
+# original daily time sequence, their subset Newey-West p-values should
+# not be the primary basis for claims that coefficients differ between
+# regimes.
+#
+# The tests below estimate each model on the chronologically ordered
+# sample and use Newey-West covariance on that sequence. Each joint test
+# asks whether the BTC volatility coefficients (current, lag 1, lag 2)
+# differ collectively between lower and elevated values of the relevant
+# GPR measure.
+
+
+# 49. Helper function for full-sample dynamic regime interaction tests
+
+run_regime_interaction_test <- function(data, regime_variable) {
+  
+  restricted_formula <- as.formula(
+    paste(
+      "J303_Volatility ~",
+      "J303_Volatility_Lag1 + J303_Volatility_Lag2 +",
+      "BTC_Volatility + BTC_Volatility_Lag1 + BTC_Volatility_Lag2 +",
+      regime_variable
+    )
+  )
+  
+  full_formula <- as.formula(
+    paste(
+      "J303_Volatility ~",
+      "J303_Volatility_Lag1 + J303_Volatility_Lag2 +",
+      "(BTC_Volatility + BTC_Volatility_Lag1 + BTC_Volatility_Lag2) *",
+      regime_variable
+    )
+  )
+  
+  restricted_model <- lm(
+    restricted_formula,
+    data = data
+  )
+  
+  full_model <- lm(
+    full_formula,
+    data = data
+  )
+  
+  nw_covariance <- NeweyWest(
+    full_model,
+    prewhite = FALSE
+  )
+  
+  joint_test <- waldtest(
+    restricted_model,
+    full_model,
+    vcov = nw_covariance
+  )
+  
+  list(
+    restricted_model = restricted_model,
+    full_model = full_model,
+    nw_covariance = nw_covariance,
+    joint_test = joint_test
+  )
+}
+
+
+# 50. Full-sample GPRD regime difference test
+
+formal.gprd.regime.test <- run_regime_interaction_test(
+  data,
+  "GPR_Regime"
+)
+
+formal.gprd.regime.test$joint_test
+
+
+# 51. Full-sample ACT regime difference test
+
+formal.act.regime.test <- run_regime_interaction_test(
+  data,
+  "GPRD_ACT_Regime"
+)
+
+formal.act.regime.test$joint_test
+
+
+# 52. Full-sample THREAT regime difference test
+
+formal.threat.regime.test <- run_regime_interaction_test(
+  data,
+  "GPRD_THREAT_Regime"
+)
+
+formal.threat.regime.test$joint_test
+
+
+# 53. Post-2017 ACT regime difference test
+# Lags were created before filtering the data to the post-2017 period.
+
+formal.post2017.act.regime.test <- run_regime_interaction_test(
+  post2017.data,
+  "GPRD_ACT_Regime"
+)
+
+formal.post2017.act.regime.test$joint_test
+
+
+# 54. Summary of formal joint regime difference tests
+
+formal.regime.tests.summary <- data.frame(
+  Analysis = c(
+    "Full sample: GPRD",
+    "Full sample: ACT",
+    "Full sample: THREAT",
+    "Post-2017: ACT"
+  ),
+  F_Statistic = c(
+    formal.gprd.regime.test$joint_test$F[2],
+    formal.act.regime.test$joint_test$F[2],
+    formal.threat.regime.test$joint_test$F[2],
+    formal.post2017.act.regime.test$joint_test$F[2]
+  ),
+  P_Value = c(
+    formal.gprd.regime.test$joint_test$`Pr(>F)`[2],
+    formal.act.regime.test$joint_test$`Pr(>F)`[2],
+    formal.threat.regime.test$joint_test$`Pr(>F)`[2],
+    formal.post2017.act.regime.test$joint_test$`Pr(>F)`[2]
+  )
+)
+
+formal.regime.tests.summary$F_Statistic <-
+  round(formal.regime.tests.summary$F_Statistic, 4)
+
+formal.regime.tests.summary$P_Value <-
+  vapply(
+    formal.regime.tests.summary$P_Value,
+    function(p) format_p(p),
+    character(1)
+  )
+
+formal.regime.tests.summary
+
+
+# Formal regime-comparison results for reporting
+formal.regime.tests.summary
 

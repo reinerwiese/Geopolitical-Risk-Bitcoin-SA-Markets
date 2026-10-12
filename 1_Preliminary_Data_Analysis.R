@@ -187,9 +187,11 @@ boxplot(J303,
 
 # 8. Stationarity Tests
 
-adf.test(btc)
+adf_btc <- adf.test(btc)
+print(adf_btc)
 
-adf.test(J303)
+adf_J303 <- adf.test(J303)
+print(adf_J303)
 
 
 # 9. Normality Tests
@@ -203,25 +205,37 @@ jarque.bera.test(J303)
 
 # Test for autocorrelation in returns
 
-Box.test(btc,
-         lag = 20,
-         type = "Ljung-Box")
+lb_btc_returns <- Box.test(
+  btc,
+  lag = 20,
+  type = "Ljung-Box"
+)
+print(lb_btc_returns)
 
-Box.test(J303,
-         lag = 20,
-         type = "Ljung-Box")
+lb_J303_returns <- Box.test(
+  J303,
+  lag = 20,
+  type = "Ljung-Box"
+)
+print(lb_J303_returns)
 
 
 # Test for autocorrelation in squared returns
 # Significant results indicate volatility clustering.
 
-Box.test(btc^2,
-         lag = 20,
-         type = "Ljung-Box")
+lb_btc_squared <- Box.test(
+  btc^2,
+  lag = 20,
+  type = "Ljung-Box"
+)
+print(lb_btc_squared)
 
-Box.test(J303^2,
-         lag = 20,
-         type = "Ljung-Box")
+lb_J303_squared <- Box.test(
+  J303^2,
+  lag = 20,
+  type = "Ljung-Box"
+)
+print(lb_J303_squared)
 
 
 # 11. ARCH Test
@@ -229,11 +243,17 @@ Box.test(J303^2,
 # Significant ARCH effects indicate time-varying volatility
 # and justify the estimation of GARCH-family models.
 
-ArchTest(btc,
-         lags = 12)
+arch_btc <- ArchTest(
+  btc,
+  lags = 12
+)
+print(arch_btc)
 
-ArchTest(J303,
-         lags = 12)
+arch_J303 <- ArchTest(
+  J303,
+  lags = 12
+)
+print(arch_J303)
 
 
 # 12. Weekday Return Check
@@ -264,3 +284,98 @@ aggregate(BTC ~ Day,
 aggregate(J303 ~ Day,
           data = weekday_summary,
           FUN = function(x) sd(x, na.rm = TRUE))
+
+
+# 13. Preliminary Test Results
+
+preliminary_test_results <- data.frame(
+  
+  Test = c(
+    "Augmented Dickey-Fuller",
+    "Augmented Dickey-Fuller",
+    "Ljung-Box: Returns",
+    "Ljung-Box: Returns",
+    "Ljung-Box: Squared Returns",
+    "Ljung-Box: Squared Returns",
+    "ARCH LM",
+    "ARCH LM"
+  ),
+  
+  Series = c(
+    "Bitcoin returns",
+    "J303 returns",
+    "Bitcoin returns",
+    "J303 returns",
+    "Bitcoin squared returns",
+    "J303 squared returns",
+    "Bitcoin returns",
+    "J303 returns"
+  ),
+  
+  Statistic = unname(c(
+    adf_btc$statistic[1],
+    adf_J303$statistic[1],
+    lb_btc_returns$statistic[1],
+    lb_J303_returns$statistic[1],
+    lb_btc_squared$statistic[1],
+    lb_J303_squared$statistic[1],
+    arch_btc$statistic[1],
+    arch_J303$statistic[1]
+  )),
+  
+  Lag_Order = as.numeric(c(
+    adf_btc$parameter[1],
+    adf_J303$parameter[1],
+    20, 20, 20, 20, 12, 12
+  )),
+  
+  Degrees_of_Freedom = as.numeric(c(
+    NA, NA,
+    lb_btc_returns$parameter[1],
+    lb_J303_returns$parameter[1],
+    lb_btc_squared$parameter[1],
+    lb_J303_squared$parameter[1],
+    arch_btc$parameter[1],
+    arch_J303$parameter[1]
+  )),
+  
+  P_Value = c(
+    adf_btc$p.value,
+    adf_J303$p.value,
+    lb_btc_returns$p.value,
+    lb_J303_returns$p.value,
+    lb_btc_squared$p.value,
+    lb_J303_squared$p.value,
+    arch_btc$p.value,
+    arch_J303$p.value
+  )
+  
+)
+
+preliminary_test_results_display <- preliminary_test_results
+
+preliminary_test_results_display$Statistic <- round(
+  preliminary_test_results_display$Statistic,
+  4
+)
+
+preliminary_test_results_display$P_Value <- ifelse(
+  preliminary_test_results_display$P_Value < 0.001,
+  "<0.001",
+  ifelse(
+    preliminary_test_results_display$Test ==
+      "Augmented Dickey-Fuller" &
+      preliminary_test_results_display$P_Value <= 0.01,
+    "<0.01",
+    formatC(
+      preliminary_test_results_display$P_Value,
+      format = "g",
+      digits = 4
+    )
+  )
+)
+
+print(
+  preliminary_test_results_display,
+  row.names = FALSE
+)

@@ -338,7 +338,24 @@ persistence(fit.gjr)
 
 # 12. Nyblom Parameter Stability Test
 
-nyblom(fit.egarch)
+J303_egarch_nyblom_results <- nyblom(fit.egarch)
+
+J303_egarch_nyblom_results
+
+
+# 12.1. Save Reference EGARCH Parameter Estimates
+
+J303_egarch_coef_matrix <- fit.egarch@fit$matcoef
+
+J303_egarch_parameter_results <- data.frame(
+  Model = "J303 EGARCH(1,1), ARMA(0,0)",
+  Parameter = rownames(J303_egarch_coef_matrix),
+  as.data.frame(J303_egarch_coef_matrix, check.names = FALSE),
+  row.names = NULL,
+  check.names = FALSE
+)
+
+J303_egarch_parameter_results
 
 
 # 13. Extract Conditional Volatility
@@ -411,30 +428,71 @@ qqline(
 
 # Test for autocorrelation in standardized residuals
 
-Box.test(
+J303_lb_standardized <- Box.test(
   std.residuals,
   lag = 20,
   type = "Ljung-Box",
   fitdf = 0
 )
 
+J303_lb_standardized
+
 
 # Test for autocorrelation in squared standardized residuals
 
-Box.test(
+J303_lb_squared <- Box.test(
   std.residuals^2,
   lag = 20,
   type = "Ljung-Box",
   fitdf = 0
 )
 
+J303_lb_squared
+
 
 # Test for remaining ARCH effects
 
-ArchTest(
+J303_arch_test <- ArchTest(
   std.residuals,
   lags = 12
 )
+
+J303_arch_test
+
+
+# Save reference EGARCH diagnostics for Script 9
+
+J303_egarch_diagnostic_results <- data.frame(
+  
+  Model = "J303 EGARCH(1,1), ARMA(0,0)",
+  
+  Test = c(
+    "Ljung-Box: standardised residuals (lag 20)",
+    "Ljung-Box: squared standardised residuals (lag 20)",
+    "ARCH LM test (12 lags)"
+  ),
+  
+  Statistic = c(
+    as.numeric(J303_lb_standardized$statistic),
+    as.numeric(J303_lb_squared$statistic),
+    as.numeric(J303_arch_test$statistic)
+  ),
+  
+  Degrees_of_Freedom = c(
+    as.numeric(J303_lb_standardized$parameter),
+    as.numeric(J303_lb_squared$parameter),
+    as.numeric(J303_arch_test$parameter)
+  ),
+  
+  P_Value = c(
+    J303_lb_standardized$p.value,
+    J303_lb_squared$p.value,
+    J303_arch_test$p.value
+  )
+  
+)
+
+J303_egarch_diagnostic_results
 
 
 # 19. Weekday Standard Deviation of Standardized Residuals

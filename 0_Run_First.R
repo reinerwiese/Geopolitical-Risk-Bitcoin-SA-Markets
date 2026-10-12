@@ -53,15 +53,23 @@ btc.fit <- fit_egarch(
   data0$BTC_log_returns
 )
 
+btc.usd.fit <- fit_egarch(
+  data0$BTC_log_returns_USD
+)
+
 j303.fit <- fit_egarch(
   data0$Index_log_returns
 )
 
 
-# Canonical conditional volatility series
+# Conditional volatility series
 
 data0$BTC_Volatility <- as.numeric(
   sigma(btc.fit)
+)
+
+data0$BTC_Volatility_USD <- as.numeric(
+  sigma(btc.usd.fit)
 )
 
 data0$J303_Volatility <- as.numeric(
@@ -773,6 +781,8 @@ event_dates <- event_results %>%
     News_End_Date,
     everything()
   )
+
+
 
 
 

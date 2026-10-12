@@ -245,11 +245,34 @@ run_event_study <- function(smoothing_window) {
           Measure = events$Measure[i],
           Smoothing = events$Smoothing[i],
           Peak_Date = events$Peak_Date[i],
+          News_Start_Date = events$News_Start_Date[i],
+          News_End_Date = events$News_End_Date[i],
+          News_Start_Row = events$News_Start_Row[i],
+          News_End_Row = events$News_End_Row[i],
           Sample_Size = nrow(event_data[[i]]),
           Correlation =
             event.correlations$Correlation[i],
           BTC_Coefficient =
-            coef(model)["BTC_Volatility"],
+            unname(coef(model)["BTC_Volatility"]),
+          NeweyWest_SE =
+            unname(event.nw[[i]][
+              "BTC_Volatility",
+              "Std. Error"
+            ]),
+          CI_Lower =
+            unname(coef(model)["BTC_Volatility"] -
+                     qt(0.975, df = df.residual(model)) *
+                     event.nw[[i]][
+                       "BTC_Volatility",
+                       "Std. Error"
+                     ]),
+          CI_Upper =
+            unname(coef(model)["BTC_Volatility"] +
+                     qt(0.975, df = df.residual(model)) *
+                     event.nw[[i]][
+                       "BTC_Volatility",
+                       "Std. Error"
+                     ]),
           Adj_R2 =
             summary(model)$adj.r.squared,
           Residual_SE =
@@ -275,6 +298,24 @@ run_event_study <- function(smoothing_window) {
   event.regression$BTC_Coefficient <-
     signif(
       event.regression$BTC_Coefficient,
+      4
+    )
+  
+  event.regression$NeweyWest_SE <-
+    signif(
+      event.regression$NeweyWest_SE,
+      4
+    )
+  
+  event.regression$CI_Lower <-
+    signif(
+      event.regression$CI_Lower,
+      4
+    )
+  
+  event.regression$CI_Upper <-
+    signif(
+      event.regression$CI_Upper,
       4
     )
   
@@ -353,6 +394,68 @@ event.results_21$diagnostics
 event.results_21$regression
 
 
+# 6a. DISTINCT 21-DAY WINDOWS
+# The same exact window can be selected by more than one GPR measure.
+# These rows are collapsed by the actual data-row bounds used in the regression.
+
+event.results_21$regression.distinct <-
+  event.results_21$regression %>%
+  group_by(News_Start_Row, News_End_Row) %>%
+  summarise(
+    Event_Window = paste(
+      as.character(first(News_Start_Date)),
+      "to",
+      as.character(first(News_End_Date))
+    ),
+    Event_ID = paste(unique(Event_ID), collapse = "; "),
+    Event = paste(unique(Event), collapse = " / "),
+    Event_Codes = paste(unique(Event_Codes), collapse = "; "),
+    Measure = paste(unique(Measure), collapse = "; "),
+    Smoothing = first(Smoothing),
+    Peak_Date = paste(unique(as.character(Peak_Date)), collapse = "; "),
+    Sample_Size = first(Sample_Size),
+    Correlation = first(Correlation),
+    BTC_Coefficient = first(BTC_Coefficient),
+    NeweyWest_SE = first(NeweyWest_SE),
+    CI_Lower = first(CI_Lower),
+    CI_Upper = first(CI_Upper),
+    Adj_R2 = first(Adj_R2),
+    Residual_SE = first(Residual_SE),
+    NeweyWest_P_Value = first(NeweyWest_P_Value),
+    Significant = first(Significant),
+    Number_of_Specifications = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(News_Start_Row, News_End_Row)
+
+event.results_21$regression.distinct
+
+
+# Count significant distinct 21-day windows by coefficient sign.
+# A window is significant only once, even if multiple measures selected it.
+
+distinct.window.sign.summary.21 <- data.frame(
+  Specifications = nrow(event.results_21$regression),
+  Distinct_Windows = nrow(event.results_21$regression.distinct),
+  Significant_Distinct_Windows = sum(
+    event.results_21$regression.distinct$NeweyWest_P_Value < 0.05,
+    na.rm = TRUE
+  ),
+  Significant_Negative_Windows = sum(
+    event.results_21$regression.distinct$NeweyWest_P_Value < 0.05 &
+      event.results_21$regression.distinct$BTC_Coefficient < 0,
+    na.rm = TRUE
+  ),
+  Significant_Positive_Windows = sum(
+    event.results_21$regression.distinct$NeweyWest_P_Value < 0.05 &
+      event.results_21$regression.distinct$BTC_Coefficient > 0,
+    na.rm = TRUE
+  )
+)
+
+distinct.window.sign.summary.21
+
+
 # 7. 31-DAY RESULTS
 
 event.results_31$events
@@ -376,6 +479,24 @@ event.window.comparison <- data.frame(
     nrow(event.results_11$events),
     nrow(event.results_21$events),
     nrow(event.results_31$events)
+  ),
+  
+  Number_of_Distinct_Windows = c(
+    nrow(dplyr::distinct(
+      event.results_11$events,
+      News_Start_Row,
+      News_End_Row
+    )),
+    nrow(dplyr::distinct(
+      event.results_21$events,
+      News_Start_Row,
+      News_End_Row
+    )),
+    nrow(dplyr::distinct(
+      event.results_31$events,
+      News_Start_Row,
+      News_End_Row
+    ))
   ),
   
   Significant_Correlations = c(
@@ -407,6 +528,8 @@ event.window.comparison
 
 
 # 9. SIGNIFICANCE GRID BY MEASURE AND WINDOW
+# These grids count measure/window specifications. They are not counts of
+# distinct event windows; use regression.distinct for the 21-day unique-window results.
 
 
 # Significant correlations
@@ -539,4 +662,6 @@ event.identification.robustness.shared <- event_overlap %>%
   )
 
 event.identification.robustness.shared
+
+
 

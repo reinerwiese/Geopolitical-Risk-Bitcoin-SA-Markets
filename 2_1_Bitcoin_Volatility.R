@@ -338,12 +338,27 @@ persistence(fit.gjr)
 
 # 12. Nyblom Parameter Stability Test
 
-nyblom(fit.egarch)
+egarch_nyblom_results <- nyblom(fit.egarch)
+
+egarch_nyblom_results
+
+
+# 12.1. Save Reference EGARCH Parameter Estimates
+
+egarch_coef_matrix <- fit.egarch@fit$matcoef
+
+egarch_parameter_results <- data.frame(
+  Model = "EGARCH(1,1), ARMA(0,0)",
+  Parameter = rownames(egarch_coef_matrix),
+  as.data.frame(egarch_coef_matrix, check.names = FALSE),
+  row.names = NULL,
+  check.names = FALSE
+)
+
+egarch_parameter_results
 
 
 # 13. Extract Conditional Volatility
-
-# EGARCH ARMA(0,0) is used as the reference model.
 
 volatility <- sigma(fit.egarch)
 
@@ -409,7 +424,7 @@ qqline(
 
 # Test for autocorrelation in standardized residuals
 
-Box.test(
+lb_standardized <- Box.test(
   std.residuals,
   lag = 20,
   type = "Ljung-Box",
@@ -419,7 +434,7 @@ Box.test(
 
 # Test for autocorrelation in squared standardized residuals
 
-Box.test(
+lb_squared <- Box.test(
   std.residuals^2,
   lag = 20,
   type = "Ljung-Box",
@@ -429,10 +444,45 @@ Box.test(
 
 # Test for remaining ARCH effects
 
-ArchTest(
+arch_test <- ArchTest(
   std.residuals,
   lags = 12
 )
+
+
+# Save reference EGARCH diagnostics in a structured table for Script 9
+
+egarch_diagnostic_results <- data.frame(
+  
+  Model = "EGARCH(1,1), ARMA(0,0)",
+  
+  Test = c(
+    "Ljung-Box: standardised residuals (lag 20)",
+    "Ljung-Box: squared standardised residuals (lag 20)",
+    "ARCH LM test (12 lags)"
+  ),
+  
+  Statistic = c(
+    as.numeric(lb_standardized$statistic),
+    as.numeric(lb_squared$statistic),
+    as.numeric(arch_test$statistic)
+  ),
+  
+  Degrees_of_Freedom = c(
+    as.numeric(lb_standardized$parameter),
+    as.numeric(lb_squared$parameter),
+    as.numeric(arch_test$parameter)
+  ),
+  
+  P_Value = c(
+    lb_standardized$p.value,
+    lb_squared$p.value,
+    arch_test$p.value
+  )
+  
+)
+
+egarch_diagnostic_results
 
 
 # 19. Weekday Standard Deviation of Standardized Residuals

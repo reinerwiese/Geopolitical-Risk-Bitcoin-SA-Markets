@@ -85,6 +85,14 @@ The common setup treats `NA` as a missing value and removes incomplete observati
 
 Bitcoin trades seven days a week, unlike the JSE. After aligning Bitcoin observations to JSE dates, some Bitcoin returns cover a different interval from others, especially around weekends. This should be kept in mind when interpreting the results.
 
+### Geopolitical Risk Index data (publicly available)
+
+The `GPRD`, `GPRD_ACT` and `GPRD_THREAT` series come from the Geopolitical Risk (GPR) Index developed by Dario Caldara and Matteo Iacoviello. The authors make the index data, including the overall measure and the acts and threats subindexes, publicly available on the [official GPR website](https://www.matteoiacoviello.com/gpr.htm). The data can be downloaded there; please credit the authors and cite their paper when using the series:
+
+Caldara, D. and Iacoviello, M. (2022). “Measuring Geopolitical Risk.” *American Economic Review*, 112(4), 1194–1225.
+
+The GPR series are included in the local `Thesis_Data.xlsx` workbook so they can be aligned with the Bloomberg-based financial data. Their original source is public, even though the combined analysis workbook is not being shared.
+
 ### `GPR_Events.xlsx`
 
 This workbook stores the event audit and source information used by Script 9. The `135 Raw Peak Audit` sheet contains the raw-peak audit, while the `Sources` sheet contains the source records. Keep it in the project folder with the R scripts and your local copy of `Thesis_Data.xlsx`.

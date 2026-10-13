@@ -1,39 +1,14 @@
 # Geopolitical Risk, Bitcoin and the South African Equity Market: Testing for Volatility Spillover
 
-This repository contains the R code and data files used for a BCom Honours thesis in Financial Risk Management at Stellenbosch University. The project looks at two questions: whether geopolitical risk is related to Bitcoin volatility, and whether Bitcoin volatility helps explain volatility in the South African equity market, represented by the FTSE/JSE Capped All Share Index (J303).
+This repository contains the R scripts and supporting event-audit workbook for a BCom Honours thesis in Financial Risk Management at Stellenbosch University. The project looks at two questions: whether geopolitical risk is related to Bitcoin volatility, and whether Bitcoin volatility helps explain volatility in the South African equity market, represented by the FTSE/JSE Capped All Share Index (J303).
 
 The analysis uses estimated conditional-volatility series, dynamic regressions, GPR regimes and event windows. Results are interpreted cautiously: a same-day relationship between Bitcoin and J303 volatility is not, by itself, evidence that one market transmits shocks to the other.
 
 ## Files
 
-Keep the following files in the same project directory:
+The R scripts and `GPR_Events.xlsx` should be kept in the same project folder as this README. The scripts also expect a workbook called `Thesis_Data.xlsx`, with the analysis data on a worksheet named `Data`. That workbook is not included here: the data were obtained through Bloomberg Terminal and are not publicly available. You will need authorised access to the data to prepare the workbook and run the analysis.
 
-```text
-0_Run_First.R
-1_Preliminary_Data_Analysis.R
-2_1_Bitcoin_Volatility.R
-2_2_Index_Volatility.R
-3_GPR_BTC_Analysis.R
-4_BTC_J303_Analysis.R
-5_GPR_BTC_Threshold_Study.R
-6_GPR_BTC_Event_Study.R
-7_BTC_J303_Threshold_Study.R
-8_BTC_J303_Event_Study.R
-9_Final_Results_Output.R
-Thesis_Data.xlsx
-GPR_Events.xlsx
-README.md
-```
-
-The results script creates this folder structure if it does not already exist:
-
-```text
-Results/
-├── Tables/
-│   ├── Core/
-│   └── Appendix/
-└── Figures/
-```
+When you run Script 9, it creates a `Results` folder if needed. The output is saved under `Results/Tables/Core`, `Results/Tables/Appendix` and `Results/Figures`.
 
 ## Running the code
 
@@ -47,7 +22,7 @@ source("9_Final_Results_Output.R")
 
 This script runs the common setup and analysis scripts, then exports the selected results. You do not need to run Scripts 0–8 separately first when using this full build.
 
-If you want to inspect the analysis one script at a time, run `0_Run_First.R` first and then run the remaining scripts in numerical order. Script 9 expects the filenames shown above, along with both Excel workbooks. It reads the `Data` sheet from `Thesis_Data.xlsx` and uses the `135 Raw Peak Audit` and `Sources` sheets in `GPR_Events.xlsx`.
+If you want to inspect the analysis one script at a time, run `0_Run_First.R` first and then run the remaining scripts in numerical order. Script 9 expects the R scripts, `GPR_Events.xlsx`, and a local copy of `Thesis_Data.xlsx`. It reads the `Data` sheet from `Thesis_Data.xlsx` and uses the `135 Raw Peak Audit` and `Sources` sheets in `GPR_Events.xlsx`.
 
 ## What each script does
 
@@ -93,9 +68,9 @@ Runs the analysis scripts and exports the chosen results to `Results/Tables/Core
 
 ## Data
 
-### `Thesis_Data.xlsx`
+### `Thesis_Data.xlsx` (not included)
 
-The `Data` worksheet contains the variables used in the analysis:
+The analysis expects a `Thesis_Data.xlsx` workbook with a worksheet named `Data`, but that workbook is not included in this repository. The data come from Bloomberg Terminal and are not publicly available, so the workbook is not being shared. The variables expected on the `Data` worksheet are:
 
 | Variable | Description |
 |---|---|
@@ -112,9 +87,9 @@ Bitcoin trades seven days a week, unlike the JSE. After aligning Bitcoin observa
 
 ### `GPR_Events.xlsx`
 
-This workbook stores the event audit and source information used by Script 9. The `135 Raw Peak Audit` sheet contains the raw-peak audit, while the `Sources` sheet contains the source records. Keep this workbook alongside the R scripts and `Thesis_Data.xlsx`.
+This workbook stores the event audit and source information used by Script 9. The `135 Raw Peak Audit` sheet contains the raw-peak audit, while the `Sources` sheet contains the source records. Keep it in the project folder with the R scripts and your local copy of `Thesis_Data.xlsx`.
 
-The dataset is based on the Bloomberg-based data prepared for the thesis. Any redistribution of data should follow the relevant data-provider and university requirements.
+Because the Bloomberg data are not included, the analysis scripts cannot be run from the repository alone. Anyone reproducing the analysis will need appropriate access to the source data and must follow Bloomberg's data-use terms and the university's requirements.
 
 ## Methods and interpretation
 

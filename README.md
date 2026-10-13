@@ -89,7 +89,7 @@ Although the GPR series are public, the combined `Thesis_Data.xlsx` workbook is 
 
 The common setup treats `NA` as a missing value and removes incomplete observations before estimating the reference volatility models. Lagged regressions may lose further observations. In the current dataset, the cleaned sample used for the main analysis runs from 3 January 2014 to 22 June 2026; check the data-audit table after rerunning the scripts if the workbook changes.
 
-Bitcoin trades seven days a week, unlike the JSE. After aligning Bitcoin observations to JSE dates, some Bitcoin returns cover a different interval from others, especially around weekends. This should be kept in mind when interpreting the results.
+Bitcoin trades seven days a week, unlike the JSE, so Bitcoin is aligned to JSE trading dates using a return-to-return approach. Weekend observations for GPRD and its ACT and THREAT components are averaged before the GPR series are matched to the weekday sample. Bitcoin returns around weekends may therefore cover a different interval from other observations, which should be kept in mind when interpreting the results.
 
 ### `GPR_Events.xlsx`
 

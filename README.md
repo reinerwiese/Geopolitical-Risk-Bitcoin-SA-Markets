@@ -70,28 +70,26 @@ Runs the analysis scripts and exports the chosen results to `Results/Tables/Core
 
 ### `Thesis_Data.xlsx` (not included)
 
-The analysis expects a `Thesis_Data.xlsx` workbook with a worksheet named `Data`, but that workbook is not included in this repository. The data come from Bloomberg Terminal and are not publicly available, so the workbook is not being shared. The variables expected on the `Data` worksheet are:
+The scripts expect a workbook called `Thesis_Data.xlsx` with a worksheet named `Data`. The workbook is not included in this repository because the financial data were obtained through Bloomberg Terminal and are not publicly available. The worksheet combines those financial series with the publicly available Geopolitical Risk (GPR) Index data. The expected variables are:
 
-| Variable | Description |
-|---|---|
-| `Date` | Observation date |
-| `BTC_log_returns` | Bitcoin log returns |
-| `Index_log_returns` | J303 log returns |
-| `GPRD` | Overall geopolitical risk index |
-| `GPRD_ACT` | Geopolitical risk associated with acts |
-| `GPRD_THREAT` | Geopolitical risk associated with threats |
+| Variable | Description | Source |
+|---|---|---|
+| `Date` | Observation date | — |
+| `BTC_log_returns` | Bitcoin log returns | Bloomberg Terminal |
+| `Index_log_returns` | J303 log returns | Bloomberg Terminal |
+| `GPRD` | Overall geopolitical risk index | Caldara and Iacoviello GPR Index |
+| `GPRD_ACT` | Geopolitical risk associated with acts | Caldara and Iacoviello GPR Index |
+| `GPRD_THREAT` | Geopolitical risk associated with threats | Caldara and Iacoviello GPR Index |
+
+The `GPRD`, `GPRD_ACT` and `GPRD_THREAT` series are published by Dario Caldara and Matteo Iacoviello and can be downloaded from their [official GPR website](https://www.matteoiacoviello.com/gpr.htm). When using these data, please credit the authors and cite their paper:
+
+Caldara, D. and Iacoviello, M. (2022). “Measuring Geopolitical Risk.” *American Economic Review*, 112(4), 1194–1225.
+
+Although the GPR series are public, the combined `Thesis_Data.xlsx` workbook is not shared because it also contains the Bloomberg-based financial data. Anyone wishing to reproduce the analysis will need appropriate access to those financial data and must follow Bloomberg's data-use terms.
 
 The common setup treats `NA` as a missing value and removes incomplete observations before estimating the reference volatility models. Lagged regressions may lose further observations. In the current dataset, the cleaned sample used for the main analysis runs from 3 January 2014 to 22 June 2026; check the data-audit table after rerunning the scripts if the workbook changes.
 
 Bitcoin trades seven days a week, unlike the JSE. After aligning Bitcoin observations to JSE dates, some Bitcoin returns cover a different interval from others, especially around weekends. This should be kept in mind when interpreting the results.
-
-### Geopolitical Risk Index data (publicly available)
-
-The `GPRD`, `GPRD_ACT` and `GPRD_THREAT` series come from the Geopolitical Risk (GPR) Index developed by Dario Caldara and Matteo Iacoviello. The authors make the index data, including the overall measure and the acts and threats subindexes, publicly available on the [official GPR website](https://www.matteoiacoviello.com/gpr.htm). The data can be downloaded there; please credit the authors and cite their paper when using the series:
-
-Caldara, D. and Iacoviello, M. (2022). “Measuring Geopolitical Risk.” *American Economic Review*, 112(4), 1194–1225.
-
-The GPR series are included in the local `Thesis_Data.xlsx` workbook so they can be aligned with the Bloomberg-based financial data. Their original source is public, even though the combined analysis workbook is not being shared.
 
 ### `GPR_Events.xlsx`
 

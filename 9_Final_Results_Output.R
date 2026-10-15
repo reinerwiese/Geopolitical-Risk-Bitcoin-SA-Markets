@@ -221,7 +221,7 @@ round_numeric <- function(x, digits = 4) {
 
 
 # Standardise p-value presentation across all exported tables.
-# All p-values below 0.001 are displayed as <0.001, rather than as zero
+# All p-values below 0.01 are displayed as <0.01, rather than as zero
 # or as varying scientific-notation thresholds.
 format_p_values <- function(x, digits = 4) {
   
@@ -229,11 +229,11 @@ format_p_values <- function(x, digits = 4) {
   
   # Use the same reporting threshold for all exported p-values.
   # This includes values numerically returned as exactly zero.
-  is_small <- !is.na(x) & is.finite(x) & x >= 0 & x < 0.001
-  is_reportable <- !is.na(x) & is.finite(x) & x >= 0.001 & x <= 1
+  is_small <- !is.na(x) & is.finite(x) & x >= 0 & x < 0.01
+  is_reportable <- !is.na(x) & is.finite(x) & x >= 0.01 & x <= 1
   is_other <- !is.na(x) & !(is_small | is_reportable)
   
-  out[is_small] <- "<0.001"
+  out[is_small] <- "<0.01"
   out[is_reportable] <- formatC(
     x[is_reportable],
     format = "g",
@@ -264,7 +264,7 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     digits = digits
   )
   
-  # Apply the same <0.001 threshold and four-significant-digit convention
+  # Apply the same <0.01 threshold and four-significant-digit convention
   # to numeric and pre-formatted character p-value columns in both exports.
   for (nm in p_value_cols) {
     raw_p <- raw_p_values[[nm]]
@@ -287,15 +287,15 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
       )
       
       # Preserve explicit reporting bounds such as <0.01. Standardise only
-      # bounds whose numeric value is itself below the common <0.001 threshold.
+      # bounds whose numeric value is itself below the common <0.01 threshold.
       less_than_label <- grepl("^<", raw_text)
       less_than_bound <- suppressWarnings(
         as.numeric(sub("^<\\s*", "", raw_text))
       )
-      standardise_to_001 <- less_than_label &
+      standardise_to_01 <- less_than_label &
         !is.na(less_than_bound) &
-        less_than_bound < 0.001
-      formatted_p[standardise_to_001] <- "<0.001"
+        less_than_bound < 0.01
+      formatted_p[standardise_to_01] <- "<0.01"
       formatted_p[is.na(raw_p)] <- NA_character_
       
       x[[nm]] <- formatted_p
@@ -521,7 +521,7 @@ preliminary_tests <- e1$preliminary_test_results %>%
     P_Value = as.numeric(P_Value),
     P_Value = dplyr::case_when(
       is.na(P_Value) ~ NA_character_,
-      P_Value < 0.001 ~ "<0.001",
+      P_Value < 0.01 ~ "<0.01",
       Test == "Augmented Dickey-Fuller" & P_Value <= 0.01 ~ "<0.01",
       TRUE ~ formatC(P_Value, format = "g", digits = 4)
     )
@@ -993,12 +993,58 @@ t11_components <- t11_components %>%
     Joint_Wald_P_Value = Partial_F_pvalue
   )
 
+# Add the post-2017 ACT and THREAT dynamic models estimated in Script 3.
+# Use the full-precision R-squared changes and joint Wald statistics.
+t11_components_post2017 <- e3$post2017.component.dynamic.summary
+
+if (all(c(
+  "post2017.delta_R2_ACT",
+  "post2017.delta_R2_THREAT"
+) %in% ls(envir = e3))) {
+  t11_components_post2017$Delta_R2 <- c(
+    e3$post2017.delta_R2_ACT,
+    e3$post2017.delta_R2_THREAT
+  )
+} else {
+  stop("Post-2017 ACT/THREAT Delta_R2 values were not found in Script 3 output.")
+}
+
+t11_components_post2017 <- t11_components_post2017 %>%
+  mutate(
+    Measure = c("GPRD_ACT", "GPRD_THREAT"),
+    Sample = "Post-2017",
+    N = c(
+      nobs(e3$post2017.component.dynamic.models[[1]]),
+      nobs(e3$post2017.component.dynamic.models[[2]])
+    ),
+    Joint_F_Statistic = c(
+      e3$post2017.F_ACT$F[2],
+      e3$post2017.F_THREAT$F[2]
+    )
+  ) %>%
+  transmute(
+    Measure,
+    Sample,
+    N,
+    GPR_Lag0_Effect_pp_per_SD = GPR_Coefficient_pp,
+    GPR_Lag1_Effect_pp_per_SD = GPR_Lag1_Coefficient_pp,
+    GPR_Lag2_Effect_pp_per_SD = GPR_Lag2_Coefficient_pp,
+    GPR_Lag0_NW_P_Value = GPR_NW_pvalue,
+    GPR_Lag1_NW_P_Value = GPR_Lag1_NW_pvalue,
+    GPR_Lag2_NW_P_Value = GPR_Lag2_NW_pvalue,
+    Adj_R2,
+    Delta_R2,
+    Joint_F_Statistic,
+    Joint_Wald_P_Value = Joint_Wald_pvalue
+  )
+
 t11_gprd <- t11_gprd %>%
   select(names(t11_components))
 
 t11_component_dynamic <- dplyr::bind_rows(
   t11_gprd,
-  t11_components
+  t11_components,
+  t11_components_post2017
 )
 
 write_table(
@@ -2562,8 +2608,14 @@ if (nrow(t10_gpr_main) != 10) {
   stop("T10 validation failed: expected five full-sample and five post-2017 GPR models.")
 }
 
-if (nrow(t11_component_dynamic) != 3) {
-  stop("T11 validation failed: expected GPRD, ACT and THREAT rows.")
+if (
+  nrow(t11_component_dynamic) != 5 ||
+  sum(t11_component_dynamic$Sample == "Post-2017") != 2 ||
+  !all(c("GPRD_ACT", "GPRD_THREAT") %in% t11_component_dynamic$Measure[
+    t11_component_dynamic$Sample == "Post-2017"
+  ])
+) {
+  stop("T11 validation failed: expected full-sample GPRD, ACT and THREAT rows plus post-2017 ACT and THREAT rows.")
 }
 
 if (

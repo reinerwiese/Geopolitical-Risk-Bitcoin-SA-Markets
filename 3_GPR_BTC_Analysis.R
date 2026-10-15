@@ -744,6 +744,234 @@ rownames(post2017.comparison) <- NULL
 post2017.comparison
 
 
+# 15.1 Post-2017 dynamic GPR component models
+# These extend the full-sample ACT and THREAT models to the post-2017 sample.
+
+post2017.component.dynamic.models <- list(
+  
+  "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2" = lm(
+    BTC_Volatility ~
+      BTC_Volatility_Lag1 +
+      BTC_Volatility_Lag2 +
+      GPRD_ACT_z +
+      GPRD_ACT_Lag1 +
+      GPRD_ACT_Lag2,
+    data = post2017.data
+  ),
+  
+  "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2" = lm(
+    BTC_Volatility ~
+      BTC_Volatility_Lag1 +
+      BTC_Volatility_Lag2 +
+      GPRD_THREAT_z +
+      GPRD_THREAT_Lag1 +
+      GPRD_THREAT_Lag2,
+    data = post2017.data
+  )
+  
+)
+
+lapply(
+  post2017.component.dynamic.models,
+  summary
+)
+
+
+# Newey-West robust inference for post-2017 component models
+
+post2017.component.dynamic.nw <- lapply(
+  post2017.component.dynamic.models,
+  run_nw
+)
+
+names(post2017.component.dynamic.nw) <-
+  names(post2017.component.dynamic.models)
+
+post2017.component.dynamic.nw
+
+
+# Joint Newey-West Wald tests:
+# H0: contemporaneous component GPR and its two lags are jointly zero
+
+post2017.F_ACT <- waldtest(
+  post2017.restricted.dynamic2,
+  post2017.component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2"
+  ]],
+  vcov = NeweyWest(
+    post2017.component.dynamic.models[[
+      "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2"
+    ]],
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+post2017.F_THREAT <- waldtest(
+  post2017.restricted.dynamic2,
+  post2017.component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2"
+  ]],
+  vcov = NeweyWest(
+    post2017.component.dynamic.models[[
+      "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2"
+    ]],
+    prewhite = FALSE
+  ),
+  test = "F"
+)
+
+post2017.F_ACT
+post2017.F_THREAT
+
+
+# Post-2017 change in R-squared from adding component GPR terms
+
+post2017.delta_R2_ACT <-
+  summary(post2017.component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_ACT Lags0-2"
+  ]])$r.squared -
+  summary(post2017.restricted.dynamic2)$r.squared
+
+post2017.delta_R2_THREAT <-
+  summary(post2017.component.dynamic.models[[
+    "Dynamic: BTC Volatility Lags1-2 + GPRD_THREAT Lags0-2"
+  ]])$r.squared -
+  summary(post2017.restricted.dynamic2)$r.squared
+
+post2017.delta_R2_ACT
+post2017.delta_R2_THREAT
+
+
+# 15.2 Post-2017 dynamic GPR component summary
+
+post2017.component.dynamic.summary <- data.frame(
+  
+  Model = names(post2017.component.dynamic.models),
+  
+  N = sapply(
+    post2017.component.dynamic.models,
+    nobs
+  ),
+  
+  GPR_Coefficient_pp = 100 * c(
+    get_coef(
+      post2017.component.dynamic.models[[1]],
+      "GPRD_ACT_z"
+    ),
+    get_coef(
+      post2017.component.dynamic.models[[2]],
+      "GPRD_THREAT_z"
+    )
+  ),
+  
+  GPR_Lag1_Coefficient_pp = 100 * c(
+    get_coef(
+      post2017.component.dynamic.models[[1]],
+      "GPRD_ACT_Lag1"
+    ),
+    get_coef(
+      post2017.component.dynamic.models[[2]],
+      "GPRD_THREAT_Lag1"
+    )
+  ),
+  
+  GPR_Lag2_Coefficient_pp = 100 * c(
+    get_coef(
+      post2017.component.dynamic.models[[1]],
+      "GPRD_ACT_Lag2"
+    ),
+    get_coef(
+      post2017.component.dynamic.models[[2]],
+      "GPRD_THREAT_Lag2"
+    )
+  ),
+  
+  BTC_Volatility_Lag1_Coefficient = sapply(
+    post2017.component.dynamic.models,
+    get_coef,
+    variable = "BTC_Volatility_Lag1"
+  ),
+  
+  BTC_Volatility_Lag2_Coefficient = sapply(
+    post2017.component.dynamic.models,
+    get_coef,
+    variable = "BTC_Volatility_Lag2"
+  ),
+  
+  Adj_R2 = sapply(
+    post2017.component.dynamic.models,
+    function(x) summary(x)$adj.r.squared
+  ),
+  
+  Delta_R2 = c(
+    post2017.delta_R2_ACT,
+    post2017.delta_R2_THREAT
+  ),
+  
+  GPR_NW_pvalue = c(
+    get_nw_p(
+      post2017.component.dynamic.nw[[1]],
+      "GPRD_ACT_z"
+    ),
+    get_nw_p(
+      post2017.component.dynamic.nw[[2]],
+      "GPRD_THREAT_z"
+    )
+  ),
+  
+  GPR_Lag1_NW_pvalue = c(
+    get_nw_p(
+      post2017.component.dynamic.nw[[1]],
+      "GPRD_ACT_Lag1"
+    ),
+    get_nw_p(
+      post2017.component.dynamic.nw[[2]],
+      "GPRD_THREAT_Lag1"
+    )
+  ),
+  
+  GPR_Lag2_NW_pvalue = c(
+    get_nw_p(
+      post2017.component.dynamic.nw[[1]],
+      "GPRD_ACT_Lag2"
+    ),
+    get_nw_p(
+      post2017.component.dynamic.nw[[2]],
+      "GPRD_THREAT_Lag2"
+    )
+  ),
+  
+  Joint_Wald_pvalue = c(
+    post2017.F_ACT$`Pr(>F)`[2],
+    post2017.F_THREAT$`Pr(>F)`[2]
+  )
+  
+) %>%
+  mutate(
+    across(
+      contains("Coefficient"),
+      ~ signif(.x, 4)
+    ),
+    Adj_R2 = round(
+      Adj_R2,
+      4
+    ),
+    Delta_R2 = round(
+      Delta_R2,
+      4
+    ),
+    across(
+      contains("pvalue"),
+      ~ signif(.x, 4)
+    )
+  )
+
+rownames(post2017.component.dynamic.summary) <- NULL
+
+post2017.component.dynamic.summary
+
+
 ###############################################################
 # Section E: Regression Summary
 ###############################################################

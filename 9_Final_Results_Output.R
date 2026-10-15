@@ -248,13 +248,13 @@ format_p_values <- function(x, digits = 4) {
 write_table <- function(x, name, digits = 4, appendix = FALSE) {
   
   x <- as.data.frame(x)
-  
-  # Keep p-values before general numeric rounding so that small values
-  # are not rounded to zero in the exported tables. Some upstream scripts
-  # already format p-values as character strings; include those too so the
-  # same reporting threshold is applied consistently across every export.
+
   p_value_cols <- names(x)[
-    grepl("p.?value|_p($|_)", names(x), ignore.case = TRUE)
+    grepl(
+      "(^p$|p.?value|p.?val|(^|_)p($|_))",
+      names(x),
+      ignore.case = TRUE
+    )
   ]
   raw_p_values <- x[p_value_cols]
   
@@ -263,9 +263,7 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     round_numeric,
     digits = digits
   )
-  
-  # Apply the same <0.01 threshold and four-significant-digit convention
-  # to numeric and pre-formatted character p-value columns in both exports.
+
   for (nm in p_value_cols) {
     raw_p <- raw_p_values[[nm]]
     
@@ -285,9 +283,7 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
         numeric_p[can_format],
         digits = 4
       )
-      
-      # Preserve explicit reporting bounds such as <0.01. Standardise only
-      # bounds whose numeric value is itself below the common <0.01 threshold.
+
       less_than_label <- grepl("^<", raw_text)
       less_than_bound <- suppressWarnings(
         as.numeric(sub("^<\\s*", "", raw_text))
@@ -317,9 +313,7 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
     row.names = FALSE,
     na = ""
   )
-  # Create a display-only version for LaTeX.
-  # P-value formatting is standardised in both exports; the following
-  # changes only make event IDs, text, and headings easier to read in TSV.
+
   x_tsv <- x
   original_names <- names(x_tsv)
   
@@ -371,6 +365,17 @@ write_table <- function(x, name, digits = 4, appendix = FALSE) {
   display_names[
     display_names == "Nyblom Joint"
   ] <- "Nyblom joint"
+  
+
+  for (nm in intersect(p_value_cols, original_names)) {
+    if (is.character(x_tsv[[nm]])) {
+      p_text <- trimws(x_tsv[[nm]])
+      needs_math <- !is.na(p_text) &
+        grepl("^[<>]", p_text) &
+        !grepl("^\\$.*\\$$", p_text)
+      x_tsv[[nm]][needs_math] <- paste0("$", p_text[needs_math], "$")
+    }
+  }
   
   names(x_tsv) <- display_names
   
@@ -2816,8 +2821,3 @@ cat(
   ),
   "\n"
 )
-
-
-
-
-

@@ -1529,8 +1529,13 @@ build_spillover_rows <- function(
           
           J303_Lag1_Coefficient =
             get_term_coefficient(model, "J303_Volatility_Lag1"),
+          J303_Lag1_NW_P_Value =
+            get_term_p_value(nw, "J303_Volatility_Lag1"),
+          
           J303_Lag2_Coefficient =
             get_term_coefficient(model, "J303_Volatility_Lag2"),
+          J303_Lag2_NW_P_Value =
+            get_term_p_value(nw, "J303_Volatility_Lag2"),
           
           Adj_R2 = summary(model)$adj.r.squared,
           Restricted_R2 = restricted_r2,

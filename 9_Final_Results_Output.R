@@ -11,13 +11,21 @@ library(FinTS)
 script_dir <- getwd()
 
 output_dir <- file.path(script_dir, "Results")
+# LaTeX-facing TSVs stay in the existing Core and Appendix directories so
+# the current thesis source does not need any path/name changes.
 core_table_dir <- file.path(output_dir, "Tables", "Core")
 appendix_table_dir <- file.path(output_dir, "Tables", "Appendix")
+# Excel/audit-friendly CSV exports are kept separately from the LaTeX TSVs.
+csv_table_dir <- file.path(output_dir, "Tables", "CSV")
+core_csv_dir <- file.path(csv_table_dir, "Core")
+appendix_csv_dir <- file.path(csv_table_dir, "Appendix")
 figure_dir <- file.path(output_dir, "Figures")
 
 dir.create(output_dir, showWarnings = FALSE)
 dir.create(core_table_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(appendix_table_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(core_csv_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(appendix_csv_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
 
 
@@ -32,7 +40,6 @@ obsolete_table_basenames <- c(
   "T06_J303_EGARCH_Mean_Comparison",
   "T07_Final_GARCH_Diagnostics",
   "T05a_EGARCH_Residual_Diagnostics",
-  "T08_Weekday_Return_SD",
   "T10_GPR_Bitcoin_Regression",
   "T11a_GPR_Component_Dynamic_Regression",
   "T12_GPR_Bitcoin_Post2017",
@@ -55,12 +62,15 @@ obsolete_table_basenames <- c(
   "T31c_Bitcoin_J303_THREAT_Regime_Incremental_R2",
   "T36d_Event_Episode_to_Source_Codes",
   "T37_GPR_Bitcoin_Event_Regression_Stability",
-  "T42_Bitcoin_J303_Event_Regression_Stability"
+  "T42_Bitcoin_J303_Event_Regression_Stability",
+  # Henco explicitly removed old Appendix C.3 and D.8 from the thesis.
+  "T36c_Event_Identification_Robustness",
+  "T41_Bitcoin_J303_Event_Window_Comparison"
 )
 
 obsolete_table_files <- unlist(
   lapply(
-    c(core_table_dir, appendix_table_dir),
+    c(core_table_dir, appendix_table_dir, core_csv_dir, appendix_csv_dir),
     function(folder) {
       unlist(
         lapply(
@@ -91,14 +101,23 @@ promoted_table_basenames <- c(
   "T40a_Bitcoin_J303_Event_Unique_Window_Summary"
 )
 
-promoted_appendix_files <- unlist(
-  lapply(
-    promoted_table_basenames,
-    function(base) {
-      file.path(appendix_table_dir, paste0(base, c(".csv", ".tsv")))
-    }
+promoted_appendix_files <- c(
+  unlist(
+    lapply(
+      promoted_table_basenames,
+      function(base) {
+        file.path(appendix_table_dir, paste0(base, c(".csv", ".tsv")))
+      }
+    ),
+    use.names = FALSE
   ),
-  use.names = FALSE
+  unlist(
+    lapply(
+      promoted_table_basenames,
+      function(base) file.path(appendix_csv_dir, paste0(base, ".csv"))
+    ),
+    use.names = FALSE
+  )
 )
 
 promoted_appendix_files <- promoted_appendix_files[
@@ -108,6 +127,30 @@ promoted_appendix_files <- promoted_appendix_files[
 if (length(promoted_appendix_files) > 0) {
   invisible(file.remove(promoted_appendix_files))
 }
+
+# One-time tidy-up for results created by earlier Script 9 versions: move any
+# remaining CSV exports out of the existing LaTeX TSV directories. File names
+# are preserved; only the CSV folder location changes. Do not move TSV files.
+move_legacy_csvs <- function(from_dir, to_dir) {
+  old_csvs <- list.files(
+    from_dir,
+    pattern = "\\.csv$",
+    full.names = TRUE,
+    recursive = FALSE
+  )
+  for (old_path in old_csvs) {
+    new_path <- file.path(to_dir, basename(old_path))
+    if (file.exists(new_path)) {
+      # Keep the already-separated copy if both locations contain this CSV.
+      file.remove(old_path)
+    } else {
+      file.rename(old_path, new_path)
+    }
+  }
+  invisible(NULL)
+}
+move_legacy_csvs(core_table_dir, core_csv_dir)
+move_legacy_csvs(appendix_table_dir, appendix_csv_dir)
 
 # Remove obsolete standalone panel figures that are replaced by faceted figures.
 obsolete_figure_files <- file.path(
@@ -304,16 +347,21 @@ write_table <- function(
     }
   }
   
-  destination <- if (appendix) {
+  destination_tsv <- if (appendix) {
     appendix_table_dir
   } else {
     core_table_dir
+  }
+  destination_csv <- if (appendix) {
+    appendix_csv_dir
+  } else {
+    core_csv_dir
   }
   
   write.csv(
     x,
     file = file.path(
-      destination,
+      destination_csv,
       paste0(name, ".csv")
     ),
     row.names = FALSE,
@@ -475,7 +523,7 @@ write_table <- function(
   write.table(
     x_tsv,
     file = file.path(
-      destination,
+      destination_tsv,
       paste0(name, ".tsv")
     ),
     sep = "\t",
@@ -980,10 +1028,53 @@ write_table(
 # Detailed residual-test p-values and parameter stability are covered by T05_Final_GARCH_Diagnostics.
 
 
-# 10. Weekday Return Checks
+# 10. Weekday Return Standard Deviations
 
-# The weekday checks remain available in Script 1. Henco requested that the
-# standalone Appendix A.7 table be removed, so Script 9 does not export it.
+# Restore the weekday-return diagnostic table. This is distinct from the old
+# Appendix A.7 serial-correlation table that Henco asked to remove.
+# Calculate directly from the current Script 1 analysis data so the exported
+# table always reflects the current workbook and return series.
+weekday_data <- e1$data
+
+weekday_number <- (
+  (as.integer(format(as.Date(weekday_data$Date), "%w")) + 6L) %% 7L
+) + 1L
+
+weekday_names <- c(
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+)
+
+weekday_data$Day <- weekday_names[weekday_number]
+
+weekday_order <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+
+weekday_return_sd <- weekday_data %>%
+  filter(Day %in% weekday_order) %>%
+  group_by(Day) %>%
+  summarise(
+    Bitcoin_SD = sd(BTC_log_returns, na.rm = TRUE),
+    J303_SD = sd(Index_log_returns, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Day = factor(Day, levels = weekday_order)) %>%
+  arrange(Day) %>%
+  mutate(Day = as.character(Day))
+
+if (nrow(weekday_return_sd) != 5L || anyNA(weekday_return_sd$Bitcoin_SD) ||
+    anyNA(weekday_return_sd$J303_SD)) {
+  stop("Weekday return SD export check failed: expected five complete weekday rows.")
+}
+
+write_table(
+  weekday_return_sd,
+  "T08_Weekday_Return_SD",
+  appendix = TRUE,
+  display_headers = c(
+    Day = "Day",
+    Bitcoin_SD = "Bitcoin SD",
+    J303_SD = "J303 SD"
+  )
+)
 
 
 # 11. GPR -> Bitcoin Volatility
@@ -1251,7 +1342,7 @@ t10a_table41_latex <- build_table41_display(latex = TRUE)
 
 write.csv(
   t10a_table41_display,
-  file = file.path(core_table_dir, "T10a_GPR_Bitcoin_Table_41_Display.csv"),
+  file = file.path(core_csv_dir, "T10a_GPR_Bitcoin_Table_41_Display.csv"),
   row.names = FALSE,
   na = ""
 )
@@ -1862,7 +1953,7 @@ if (nrow(t14a_table51_display) != 2L || ncol(t14a_table51_display) != 13L) {
 # Granger directions on separate lines, solely for Table 5.1 presentation.
 write.csv(
   t14a_table51_display,
-  file = file.path(core_table_dir, "T14a_Bitcoin_J303_Table_51_Display.csv"),
+  file = file.path(core_csv_dir, "T14a_Bitcoin_J303_Table_51_Display.csv"),
   row.names = FALSE,
   na = ""
 )
@@ -2012,7 +2103,7 @@ if (nrow(t51a_coefficients_csv) != 5L || ncol(t51a_coefficients_csv) != 5L ||
 
 write.csv(
   t51a_coefficients_csv,
-  file = file.path(core_table_dir, "T14c_Bitcoin_J303_Table_51_Coefficients_Display.csv"),
+  file = file.path(core_csv_dir, "T14c_Bitcoin_J303_Table_51_Coefficients_Display.csv"),
   row.names = FALSE,
   na = ""
 )
@@ -2023,7 +2114,7 @@ write.table(
 )
 write.csv(
   t51b_model_fit_csv,
-  file = file.path(core_table_dir, "T14d_Bitcoin_J303_Table_51_Model_Fit_Display.csv"),
+  file = file.path(core_csv_dir, "T14d_Bitcoin_J303_Table_51_Model_Fit_Display.csv"),
   row.names = FALSE,
   na = ""
 )
@@ -2160,7 +2251,7 @@ if (nrow(t14b_table52_display) != 4L || ncol(t14b_table52_display) != 11L) {
 
 write.csv(
   t14b_table52_display,
-  file = file.path(core_table_dir, "T14b_Bitcoin_J303_Table_52_Display.csv"),
+  file = file.path(core_csv_dir, "T14b_Bitcoin_J303_Table_52_Display.csv"),
   row.names = FALSE,
   na = ""
 )
@@ -2562,7 +2653,7 @@ if (
 
 write.csv(
   t22b5_coefficients_csv,
-  file = file.path(appendix_table_dir, "T22a_GPR_Regime_Dynamic_Coefficients_Display.csv"),
+  file = file.path(appendix_csv_dir, "T22a_GPR_Regime_Dynamic_Coefficients_Display.csv"),
   row.names = FALSE, na = ""
 )
 write.table(
@@ -2572,7 +2663,7 @@ write.table(
 )
 write.csv(
   t22b5_model_fit_csv,
-  file = file.path(appendix_table_dir, "T22b_GPR_Regime_Dynamic_Model_Fit_Display.csv"),
+  file = file.path(appendix_csv_dir, "T22b_GPR_Regime_Dynamic_Model_Fit_Display.csv"),
   row.names = FALSE, na = ""
 )
 write.table(
@@ -2984,7 +3075,7 @@ if (
 
 write.csv(
   t28b6_coefficients_csv,
-  file = file.path(appendix_table_dir, "T28a_Bitcoin_J303_Regime_Coefficients_Display.csv"),
+  file = file.path(appendix_csv_dir, "T28a_Bitcoin_J303_Regime_Coefficients_Display.csv"),
   row.names = FALSE, na = ""
 )
 write.table(
@@ -2994,7 +3085,7 @@ write.table(
 )
 write.csv(
   t28b6_model_fit_csv,
-  file = file.path(appendix_table_dir, "T28b_Bitcoin_J303_Regime_Model_Fit_Display.csv"),
+  file = file.path(appendix_csv_dir, "T28b_Bitcoin_J303_Regime_Model_Fit_Display.csv"),
   row.names = FALSE, na = ""
 )
 write.table(
@@ -3163,7 +3254,7 @@ if (
 
 write.csv(
   t29c_table53_display,
-  file = file.path(core_table_dir, "T29c_Bitcoin_J303_Regime_Interaction_Display.csv"),
+  file = file.path(core_csv_dir, "T29c_Bitcoin_J303_Regime_Interaction_Display.csv"),
   row.names = FALSE,
   na = ""
 )
@@ -3218,8 +3309,12 @@ write_table(
 
 # 16. GPR -> Bitcoin Event Analysis
 
-# Appendix D: event-window descriptive statistics and GPR-Bitcoin regressions
-# for the 21-observation event window.
+# Appendix D.3: detailed GPR-Bitcoin regression results for the 15 primary
+# 21-observation specifications. Henco did not request removal of these
+# regression results; the old deletion rule confused them with a different
+# table in an earlier draft. The plotted and tabulated effects use the same
+# scaling: percentage-point changes in daily BTC conditional volatility per
+# one-standard-deviation increase in the relevant GPR measure.
 
 t33_statistics <- e6$event.results_21$statistics %>%
   dplyr::select(
@@ -3241,28 +3336,99 @@ write_table(
   appendix = TRUE
 )
 
-# T34: restore the full GPR-Bitcoin event-window regression table.
-# These are the current Script 6 estimates for the 15 measure-specific
-# 21-observation specifications, not the estimates from the 10 October draft.
+# Use the same SD scaling as Figure 4.1. Keep the complete scaled and raw-scale
+# result fields in an audit CSV. The thesis-facing table is designed for portrait
+# layout: omit the constant sample-size field and GPR-measure field, combine the
+# confidence limits into one column, and retain the event description and source IDs.
+t34_regression_full <- e6$event.results_21$regression %>%
+  mutate(
+    GPR_SD = vapply(
+      as.character(Measure),
+      function(measure_name) sd(data0[[measure_name]], na.rm = TRUE),
+      numeric(1)
+    ),
+    GPR_Effect_pp_per_SD = 100 * GPR_Coefficient * GPR_SD,
+    NeweyWest_SE_pp_per_SD = 100 * NeweyWest_SE * GPR_SD,
+    CI_Lower_pp_per_SD = 100 * CI_Lower * GPR_SD,
+    CI_Upper_pp_per_SD = 100 * CI_Upper * GPR_SD
+  )
 
-t34_gpr_btc_event_regression <- e6$event.results_21$regression
+# Preserve all fields for audit/reproducibility, including original raw-scale
+# coefficients and confidence limits. This audit file is not the thesis table.
+write.csv(
+  t34_regression_full,
+  file = file.path(
+    appendix_csv_dir,
+    "T34a_GPR_Bitcoin_Event_Regression_21Day_Full.csv"
+  ),
+  row.names = FALSE,
+  na = ""
+)
 
-if (nrow(t34_gpr_btc_event_regression) != 15L) {
-  stop(
-    paste0(
-      "T34 validation failed: expected 15 GPR-Bitcoin event-window ",
-      "regression specifications, but found ",
-      nrow(t34_gpr_btc_event_regression),
-      "."
-    )
+format_scaled_ci <- function(lower, upper) {
+  ifelse(
+    is.na(lower) | is.na(upper),
+    NA_character_,
+    sprintf("[%.3f, %.3f]", lower, upper)
   )
 }
 
+t34_regression_display <- t34_regression_full %>%
+  transmute(
+    Event_ID,
+    Event,
+    Event_Codes,
+    Peak_Date,
+    Correlation,
+    GPR_Effect_pp_per_SD,
+    NeweyWest_SE_pp_per_SD,
+    CI_95_pp_per_SD = format_scaled_ci(
+      CI_Lower_pp_per_SD,
+      CI_Upper_pp_per_SD
+    ),
+    Adj_R2,
+    Residual_SE,
+    NeweyWest_P_Value,
+    Significant
+  )
+
+if (
+  nrow(t34_regression_display) != 15L ||
+  anyDuplicated(t34_regression_display$Event_ID) > 0L ||
+  anyNA(t34_regression_full$GPR_SD) ||
+  any(!is.finite(t34_regression_full$GPR_SD)) ||
+  any(t34_regression_full$GPR_SD <= 0) ||
+  anyNA(t34_regression_display$GPR_Effect_pp_per_SD) ||
+  anyNA(t34_regression_display$NeweyWest_SE_pp_per_SD) ||
+  anyNA(t34_regression_display$NeweyWest_P_Value)
+) {
+  stop("D.3 validation failed: expected 15 complete, uniquely identified GPR-Bitcoin event-regression specifications and valid GPR scaling factors.")
+}
+
 write_table(
-  t34_gpr_btc_event_regression,
-  "T34_GPR_Bitcoin_Event_Regression_21Day"
+  t34_regression_display,
+  "T34_GPR_Bitcoin_Event_Regression_21Day",
+  appendix = TRUE,
+  display_headers = c(
+    Event_ID = "Event ID",
+    Event = "Event",
+    Event_Codes = "Source IDs",
+    Peak_Date = "Peak date",
+    Correlation = "Correlation r",
+    GPR_Effect_pp_per_SD = "Effect (pp per 1-SD GPR)",
+    NeweyWest_SE_pp_per_SD = "NW SE (pp per 1-SD GPR)",
+    CI_95_pp_per_SD = "95 pct CI (pp per 1-SD GPR)",
+    Adj_R2 = "Adjusted R-squared",
+    Residual_SE = "Residual SE",
+    NeweyWest_P_Value = "NW p-value",
+    Significant = "Significant at 5 pct"
+  )
 )
 
+# All rows in D.3 use 21 observations; the table title states this rather
+# than spending a column on a constant. Measure and smoothing are omitted from
+# the thesis-facing table because the event IDs, peak dates and Appendix C
+# source mapping identify each specification. The raw audit CSV preserves them.
 
 # D.9 and D.10: replace the former main-text summary table with the
 # correlation and Newey-West significance grids.
@@ -3443,7 +3609,7 @@ t54_display <- t40_distinct_windows %>%
     Bitcoin_Coefficient = BTC_Coefficient,
     NW_SE = NeweyWest_SE,
     NW_P_Value = NeweyWest_P_Value,
-    Result = dplyr::case_when(
+    Significant_Sign = dplyr::case_when(
       NeweyWest_P_Value < 0.05 & BTC_Coefficient < 0 ~ "Negative",
       NeweyWest_P_Value < 0.05 & BTC_Coefficient > 0 ~ "Positive",
       TRUE ~ "Not significant"
@@ -3548,12 +3714,6 @@ t41_window_comparison <- e8$event.window.comparison %>%
     t41_unique_window_counts,
     by = "Smoothing"
   )
-
-write_table(
-  t41_window_comparison,
-  "T41_Bitcoin_J303_Event_Window_Comparison",
-  appendix = TRUE
-)
 
 if (
   nrow(t41_window_comparison) != 3 ||
@@ -3863,15 +4023,10 @@ if (
 }
 
 
-# Event identification robustness: overlap across GPR measures and windows.
-# Scripts 6 and 8 use the same event-overlap object, so export it once.
-
-write_table(
-  e6$event.identification.robustness,
-  "T36c_Event_Identification_Robustness",
-  appendix = TRUE
-)
-
+# Henco requested removal of old Appendix C.3 because the C.2 raw-peak
+# audit already documents the selected peaks and their validation checks.
+# The underlying robustness object remains available in memory but is not
+# exported as a separate thesis table.
 
 # The separate episode-to-source-code map is omitted; the raw peak audit
 # already contains the source codes, making that additional table redundant.
@@ -4497,10 +4652,6 @@ check_grid(t35b, "T35b")
 check_grid(t41a, "T41a")
 check_grid(t41b, "T41b")
 
-if (nrow(e6$event.identification.robustness) == 0) {
-  stop("T36c validation failed: event-identification robustness table is empty.")
-}
-
 if (
   nrow(raw_peak_audit) != 135 ||
   nrow(raw_peak_audit_display) != 135 ||
@@ -4544,7 +4695,6 @@ key_export_names <- c(
   "T36_GPR_Raw_Peak_Audit",
   "T36a_Event_Method_Notes",
   "T36b_GPR_Event_Sources",
-  "T36c_Event_Identification_Robustness",
   "T41a_Bitcoin_J303_Event_Significance_Correlation_Grid",
   "T41b_Bitcoin_J303_Event_Significance_NW_Grid"
 )
@@ -4579,7 +4729,6 @@ key_export_dirs <- c(
   appendix_table_dir, # T36_GPR_Raw_Peak_Audit
   appendix_table_dir, # T36a_Event_Method_Notes
   appendix_table_dir, # T36b_GPR_Event_Sources
-  appendix_table_dir, # T36c_Event_Identification_Robustness
   appendix_table_dir, # T41a_Bitcoin_J303_Event_Significance_Correlation_Grid
   appendix_table_dir  # T41b_Bitcoin_J303_Event_Significance_NW_Grid
 )
@@ -4614,16 +4763,23 @@ key_export_rows <- c(
   nrow(raw_peak_audit),
   nrow(event_method_notes),
   nrow(event_sources_display),
-  nrow(e6$event.identification.robustness),
   nrow(t41a),
   nrow(t41b)
+)
+
+# CSV validation follows the new separated CSV folders; TSV validation keeps
+# using the original paths so current LaTeX imports continue working unchanged.
+key_export_csv_dirs <- ifelse(
+  key_export_dirs == core_table_dir,
+  core_csv_dir,
+  appendix_csv_dir
 )
 
 key_export_check <- data.frame(
   Table = key_export_names,
   Rows = key_export_rows,
   CSV_Exists = file.exists(
-    file.path(key_export_dirs, paste0(key_export_names, ".csv"))
+    file.path(key_export_csv_dirs, paste0(key_export_names, ".csv"))
   ),
   TSV_Exists = file.exists(
     file.path(key_export_dirs, paste0(key_export_names, ".tsv"))
@@ -4656,7 +4812,6 @@ appendix_exports_to_check <- c(
   "T36_GPR_Raw_Peak_Audit",
   "T36a_Event_Method_Notes",
   "T36b_GPR_Event_Sources",
-  "T36c_Event_Identification_Robustness",
   "T39_Bitcoin_J303_Event_Statistics_21Day",
   "T41a_Bitcoin_J303_Event_Significance_Correlation_Grid",
   "T41b_Bitcoin_J303_Event_Significance_NW_Grid"
@@ -4677,7 +4832,6 @@ appendix_exports_to_check_dirs <- c(
   appendix_table_dir, # T36_GPR_Raw_Peak_Audit
   appendix_table_dir, # T36a_Event_Method_Notes
   appendix_table_dir, # T36b_GPR_Event_Sources
-  appendix_table_dir, # T36c_Event_Identification_Robustness
   appendix_table_dir, # T39_Bitcoin_J303_Event_Statistics_21Day
   appendix_table_dir, # T41a_Bitcoin_J303_Event_Significance_Correlation_Grid
   appendix_table_dir  # T41b_Bitcoin_J303_Event_Significance_NW_Grid
@@ -4776,24 +4930,23 @@ cat(
 )
 
 cat(
-  "Core tables:",
-  length(
-    list.files(
-      core_table_dir,
-      pattern = "\\.csv$"
-    )
-  ),
+  "Core CSV exports:",
+  length(list.files(core_csv_dir, pattern = "\\.csv$", recursive = FALSE)),
   "\n"
 )
-
 cat(
-  "Appendix tables:",
-  length(
-    list.files(
-      appendix_table_dir,
-      pattern = "\\.csv$"
-    )
-  ),
+  "Core TSV exports:",
+  length(list.files(core_table_dir, pattern = "\\.tsv$", recursive = FALSE)),
+  "\n"
+)
+cat(
+  "Appendix CSV exports:",
+  length(list.files(appendix_csv_dir, pattern = "\\.csv$", recursive = FALSE)),
+  "\n"
+)
+cat(
+  "Appendix TSV exports:",
+  length(list.files(appendix_table_dir, pattern = "\\.tsv$", recursive = FALSE)),
   "\n"
 )
 
@@ -4807,6 +4960,7 @@ cat(
   ),
   "\n"
 )
+
 
 
 

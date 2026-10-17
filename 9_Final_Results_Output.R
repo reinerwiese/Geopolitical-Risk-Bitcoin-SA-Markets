@@ -48,7 +48,6 @@ obsolete_table_basenames <- c(
   "T16_Bitcoin_J303_Post2017",
   "T17_Granger_Post2017",
   "T32_GPR_Bitcoin_Events_21Day",
-  "T34_GPR_Bitcoin_Event_Regression_21Day",
   "T35_GPR_Bitcoin_Event_Window_Comparison",
   "T38_Bitcoin_J303_Events_21Day",
   "T31a_Bitcoin_J303_GPRD_Regime_Incremental_R2",
@@ -3219,9 +3218,8 @@ write_table(
 
 # 16. GPR -> Bitcoin Event Analysis
 
-# D.3: event-window descriptive statistics for the 21-observation window.
-# Regression coefficients are used for the coefficient plot below, but the
-# separate D.4 regression table is omitted as requested by Henco.
+# Appendix D: event-window descriptive statistics and GPR-Bitcoin regressions
+# for the 21-observation event window.
 
 t33_statistics <- e6$event.results_21$statistics %>%
   dplyr::select(
@@ -3241,6 +3239,28 @@ write_table(
   t33_statistics,
   "T33_GPR_Bitcoin_Event_Statistics_21Day",
   appendix = TRUE
+)
+
+# T34: restore the full GPR-Bitcoin event-window regression table.
+# These are the current Script 6 estimates for the 15 measure-specific
+# 21-observation specifications, not the estimates from the 10 October draft.
+
+t34_gpr_btc_event_regression <- e6$event.results_21$regression
+
+if (nrow(t34_gpr_btc_event_regression) != 15L) {
+  stop(
+    paste0(
+      "T34 validation failed: expected 15 GPR-Bitcoin event-window ",
+      "regression specifications, but found ",
+      nrow(t34_gpr_btc_event_regression),
+      "."
+    )
+  )
+}
+
+write_table(
+  t34_gpr_btc_event_regression,
+  "T34_GPR_Bitcoin_Event_Regression_21Day"
 )
 
 
@@ -3423,7 +3443,7 @@ t54_display <- t40_distinct_windows %>%
     Bitcoin_Coefficient = BTC_Coefficient,
     NW_SE = NeweyWest_SE,
     NW_P_Value = NeweyWest_P_Value,
-    Significant_Sign = dplyr::case_when(
+    Result = dplyr::case_when(
       NeweyWest_P_Value < 0.05 & BTC_Coefficient < 0 ~ "Negative",
       NeweyWest_P_Value < 0.05 & BTC_Coefficient > 0 ~ "Positive",
       TRUE ~ "Not significant"

@@ -2939,6 +2939,28 @@ write_table(
 )
 
 
+# Apply the same four-decimal rounding as the source T28 export before
+# formatting the Table B.4 display cells. This avoids a display-only
+# 0.0062/0.0063 discrepancy at a rounding boundary.
+format_t28b6_stacked_cell <- function(estimate, p_value, latex = FALSE) {
+  estimate_numeric <- suppressWarnings(as.numeric(estimate))
+  p_numeric <- suppressWarnings(as.numeric(p_value))
+  estimate_text <- format_table41_number(round_numeric(estimate_numeric, digits = 4))
+  p_text <- format_table41_p(p_numeric, latex = FALSE)
+  if (identical(estimate_text, "-")) {
+    return("-")
+  }
+  if (latex) {
+    p_label <- if (startsWith(p_text, "<")) {
+      paste0("$p", p_text, "$")
+    } else {
+      paste0("$p=", p_text, "$")
+    }
+    return(paste0("\\shortstack{$", estimate_text, "$\\\\(", p_label, ")}"))
+  }
+  paste0(estimate_text, " (p", if (startsWith(p_text, "<")) "" else "=", p_text, ")")
+}
+
 # Appendix B.6: two display-only panels from the existing Bitcoin-J303
 # regime models. Coefficients are paired with their Newey-West p-values in
 # Panel A; model fit and partial F tests are in Panel B. The original T28
@@ -2955,31 +2977,31 @@ t28b6_coefficients_csv <- data.frame(
   Regime = as.character(t28_regime_comparison_display$Regime),
   N = as.character(as.integer(t28_regime_comparison_display$N)),
   `J303 lag 1` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$J303_Lag1,
     t28_regime_comparison_display$J303_Lag1_p,
     MoreArgs = list(latex = FALSE), USE.NAMES = FALSE
   ),
   `J303 lag 2` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$J303_Lag2,
     t28_regime_comparison_display$J303_Lag2_p,
     MoreArgs = list(latex = FALSE), USE.NAMES = FALSE
   ),
   `Bitcoin current` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$BTC_Lag0,
     t28_regime_comparison_display$BTC_Lag0_p,
     MoreArgs = list(latex = FALSE), USE.NAMES = FALSE
   ),
   `Bitcoin lag 1` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$BTC_Lag1,
     t28_regime_comparison_display$BTC_Lag1_p,
     MoreArgs = list(latex = FALSE), USE.NAMES = FALSE
   ),
   `Bitcoin lag 2` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$BTC_Lag2,
     t28_regime_comparison_display$BTC_Lag2_p,
     MoreArgs = list(latex = FALSE), USE.NAMES = FALSE
@@ -2993,31 +3015,31 @@ t28b6_coefficients_tsv <- data.frame(
   Regime = as.character(t28_regime_comparison_display$Regime),
   N = as.character(as.integer(t28_regime_comparison_display$N)),
   `J303 lag 1` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$J303_Lag1,
     t28_regime_comparison_display$J303_Lag1_p,
     MoreArgs = list(latex = TRUE), USE.NAMES = FALSE
   ),
   `J303 lag 2` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$J303_Lag2,
     t28_regime_comparison_display$J303_Lag2_p,
     MoreArgs = list(latex = TRUE), USE.NAMES = FALSE
   ),
   `Bitcoin current` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$BTC_Lag0,
     t28_regime_comparison_display$BTC_Lag0_p,
     MoreArgs = list(latex = TRUE), USE.NAMES = FALSE
   ),
   `Bitcoin lag 1` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$BTC_Lag1,
     t28_regime_comparison_display$BTC_Lag1_p,
     MoreArgs = list(latex = TRUE), USE.NAMES = FALSE
   ),
   `Bitcoin lag 2` = mapply(
-    format_t22_stacked_cell,
+    format_t28b6_stacked_cell,
     t28_regime_comparison_display$BTC_Lag2,
     t28_regime_comparison_display$BTC_Lag2_p,
     MoreArgs = list(latex = TRUE), USE.NAMES = FALSE
@@ -3165,17 +3187,9 @@ format_table53_estimate <- function(x, latex = FALSE) {
     return("-")
   }
   
-  # Retain the original table's readable scientific notation for tiny values.
+  # Use the same e-style scientific notation in the LaTeX-facing and CSV
+  # displays so Table 5.3 matches the notation used in the other tables.
   if (x != 0 && abs(x) < 1e-4) {
-    if (latex) {
-      exponent <- floor(log10(abs(x)))
-      mantissa <- x / (10^exponent)
-      return(paste0(
-        "$",
-        formatC(mantissa, format = "f", digits = 3),
-        "\\times10^{", exponent, "}$"
-      ))
-    }
     return(formatC(x, format = "e", digits = 3))
   }
   

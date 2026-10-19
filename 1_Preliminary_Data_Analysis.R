@@ -196,9 +196,11 @@ print(adf_J303)
 
 # 9. Normality Tests
 
-jarque.bera.test(btc)
+jb_btc <- jarque.bera.test(btc)
+print(jb_btc)
 
-jarque.bera.test(J303)
+jb_J303 <- jarque.bera.test(J303)
+print(jb_J303)
 
 
 # 10. Ljung-Box Tests
@@ -293,6 +295,8 @@ preliminary_test_results <- data.frame(
   Test = c(
     "Augmented Dickey-Fuller",
     "Augmented Dickey-Fuller",
+    "Jarque-Bera",
+    "Jarque-Bera",
     "Ljung-Box: Returns",
     "Ljung-Box: Returns",
     "Ljung-Box: Squared Returns",
@@ -306,6 +310,8 @@ preliminary_test_results <- data.frame(
     "J303 returns",
     "Bitcoin returns",
     "J303 returns",
+    "Bitcoin returns",
+    "J303 returns",
     "Bitcoin squared returns",
     "J303 squared returns",
     "Bitcoin returns",
@@ -315,6 +321,8 @@ preliminary_test_results <- data.frame(
   Statistic = unname(c(
     adf_btc$statistic[1],
     adf_J303$statistic[1],
+    jb_btc$statistic[1],
+    jb_J303$statistic[1],
     lb_btc_returns$statistic[1],
     lb_J303_returns$statistic[1],
     lb_btc_squared$statistic[1],
@@ -326,11 +334,14 @@ preliminary_test_results <- data.frame(
   Lag_Order = as.numeric(c(
     adf_btc$parameter[1],
     adf_J303$parameter[1],
+    NA, NA,
     20, 20, 20, 20, 12, 12
   )),
   
   Degrees_of_Freedom = as.numeric(c(
     NA, NA,
+    jb_btc$parameter[1],
+    jb_J303$parameter[1],
     lb_btc_returns$parameter[1],
     lb_J303_returns$parameter[1],
     lb_btc_squared$parameter[1],
@@ -342,6 +353,8 @@ preliminary_test_results <- data.frame(
   P_Value = c(
     adf_btc$p.value,
     adf_J303$p.value,
+    jb_btc$p.value,
+    jb_J303$p.value,
     lb_btc_returns$p.value,
     lb_J303_returns$p.value,
     lb_btc_squared$p.value,

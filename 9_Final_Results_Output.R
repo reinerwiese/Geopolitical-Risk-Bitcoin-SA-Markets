@@ -3201,15 +3201,11 @@ format_table53_estimate <- function(x, latex = FALSE) {
     return("-")
   }
   
+  # Use E notation for very small estimates in both CSV and LaTeX-facing output.
+  # Keep this display-only change local to Table 5.3; the underlying estimates,
+  # standard errors, p-values, and all output table names remain unchanged.
   if (x != 0 && abs(x) < 1e-4) {
-    scientific_value <- formatC(x, format = "e", digits = 3)
-    scientific_parts <- strsplit(scientific_value, "e", fixed = TRUE)[[1]]
-    mantissa <- scientific_parts[1]
-    exponent <- as.integer(scientific_parts[2])
-    if (latex) {
-      return(paste0("$", mantissa, " \\times 10^{", exponent, "}$"))
-    }
-    return(paste0(mantissa, " x 10^", exponent))
+    return(formatC(x, format = "e", digits = 3))
   }
   
   formatC(x, format = "f", digits = 4)
@@ -4987,6 +4983,18 @@ cat(
   ),
   "\n"
 )
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

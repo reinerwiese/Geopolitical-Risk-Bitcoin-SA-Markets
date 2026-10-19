@@ -5,6 +5,7 @@ library(ggplot2)
 library(rugarch)
 library(FinTS)
 
+options(scipen = 999)
 
 # 2. Setup
 
@@ -518,6 +519,18 @@ write_table <- function(
     }
   }
   
+  if (
+    name %in% c(
+      "T04_EGARCH_Parameter_Estimates",
+      "T04_EGARCH_Parameter_Estimates_Display"
+    ) && "Parameter" %in% original_names
+  ) {
+    parameter_labels <- trimws(as.character(x_tsv$Parameter))
+    parameter_labels[parameter_labels == "alpha1"] <- "$\\gamma$"
+    parameter_labels[parameter_labels == "gamma1"] <- "$\\alpha$"
+    x_tsv$Parameter <- parameter_labels
+  }
+  
   names(x_tsv) <- display_names
   
   write.table(
@@ -658,7 +671,7 @@ write_table(
   "T02_Descriptive_Statistics"
 )
 
-# Preliminary stationarity, autocorrelation and ARCH tests.
+# Preliminary normality, stationarity, autocorrelation and ARCH tests.
 # Table 3.1 Panel B uses one row per test, with Bitcoin and J303 results
 # side by side. Each statistic is paired with its p-value in the same cell
 # to keep the table compact and improve comparability.
@@ -719,6 +732,7 @@ preliminary_tests_wide <- dplyr::full_join(
     Test,
     c(
       "Augmented Dickey-Fuller",
+      "Jarque-Bera",
       "Ljung-Box: Returns",
       "Ljung-Box: Squared Returns",
       "ARCH LM"
@@ -726,12 +740,12 @@ preliminary_tests_wide <- dplyr::full_join(
   ))
 
 if (
-  nrow(preliminary_tests_wide) != 4L ||
+  nrow(preliminary_tests_wide) != 5L ||
   !all(c(
     "BTC_Statistic_P", "J303_Statistic_P"
   ) %in% names(preliminary_tests_wide))
 ) {
-  stop("T02a validation failed: expected four wide-format preliminary-test rows with paired Bitcoin and J303 statistic/p-value cells.")
+  stop("T02a validation failed: expected five wide-format preliminary-test rows with paired Bitcoin and J303 statistic/p-value cells.")
 }
 
 write_table(
@@ -823,7 +837,7 @@ write_table(
 # 9. EGARCH Parameter Estimates and Final Diagnostics
 
 # Report the fitted EGARCH parameters for both series, including the
-# asymmetry term (gamma1) that motivates the asymmetric specification.
+# sign- and size-effect parameters.
 
 # The rugarch coefficient matrix can carry leading spaces in its column
 # names. Standardise the four coefficient-statistic columns by position,
@@ -3187,10 +3201,15 @@ format_table53_estimate <- function(x, latex = FALSE) {
     return("-")
   }
   
-  # Use the same e-style scientific notation in the LaTeX-facing and CSV
-  # displays so Table 5.3 matches the notation used in the other tables.
   if (x != 0 && abs(x) < 1e-4) {
-    return(formatC(x, format = "e", digits = 3))
+    scientific_value <- formatC(x, format = "e", digits = 3)
+    scientific_parts <- strsplit(scientific_value, "e", fixed = TRUE)[[1]]
+    mantissa <- scientific_parts[1]
+    exponent <- as.integer(scientific_parts[2])
+    if (latex) {
+      return(paste0("$", mantissa, " \\times 10^{", exponent, "}$"))
+    }
+    return(paste0(mantissa, " x 10^", exponent))
   }
   
   formatC(x, format = "f", digits = 4)
@@ -4412,15 +4431,14 @@ p_event_gpr_btc <- ggplot(
   theme_thesis
 
 
-# Figure 5.1: dot plot of each 21-observation Bitcoin-J303 coefficient with
-# its Newey-West 95% confidence interval. Faceting prevents duplicate windows
-# selected by different GPR measures from being stacked or summed.
+# Figure 5.1: plot the 10 distinct 21-observation Bitcoin-J303 windows once
+# each, using the same collapsed estimates and confidence intervals as Table 5.4.
 
-event21_spill <- e8$event.results_21$regression %>%
+event21_spill <- e8$event.results_21$regression.distinct %>%
   mutate(
-    Peak_Label = factor(
-      as.character(Peak_Date),
-      levels = rev(sort(unique(as.character(Peak_Date))))
+    Event_Window_Label = factor(
+      Event_Window,
+      levels = rev(Event_Window)
     )
   )
 
@@ -4428,7 +4446,7 @@ p_event_spill <- ggplot(
   event21_spill,
   aes(
     x = BTC_Coefficient,
-    y = Peak_Label
+    y = Event_Window_Label
   )
 ) +
   geom_vline(
@@ -4440,8 +4458,8 @@ p_event_spill <- ggplot(
     aes(
       x = CI_Lower,
       xend = CI_Upper,
-      y = Peak_Label,
-      yend = Peak_Label
+      y = Event_Window_Label,
+      yend = Event_Window_Label
     ),
     linewidth = 0.45,
     colour = "black"
@@ -4450,15 +4468,10 @@ p_event_spill <- ggplot(
     size = 2,
     colour = "black"
   ) +
-  facet_wrap(
-    ~Measure,
-    ncol = 1,
-    scales = "free_y"
-  ) +
   labs(
-    title = "Bitcoin–J303 Volatility Relationship During Identified Events",
+    title = "Bitcoin–J303 Volatility Relationship Across 10 Distinct Event Windows",
     x = "Bitcoin-volatility coefficient with 95% Newey-West interval",
-    y = "Peak date"
+    y = "21-observation event window"
   ) +
   theme_thesis
 
@@ -4974,6 +4987,12 @@ cat(
   ),
   "\n"
 )
+
+
+
+
+
+
 
 
 

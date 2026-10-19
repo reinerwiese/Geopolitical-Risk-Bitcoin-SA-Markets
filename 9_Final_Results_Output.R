@@ -244,6 +244,30 @@ e8 <- run_in_isolated_env(file.path(script_dir, script_files[10]))
 
 # 5. Functions
 
+# Central display rule for genuinely small non-zero numbers.
+# Values with absolute magnitude below 1e-4 use E notation (four significant
+# figures); ordinary values keep the existing fixed-decimal presentation.
+SMALL_NUMBER_THRESHOLD <- 1e-4
+SMALL_NUMBER_E_DIGITS <- 3L
+
+format_numeric_display <- function(
+    x, digits = 4, threshold = SMALL_NUMBER_THRESHOLD,
+    scientific_digits = SMALL_NUMBER_E_DIGITS
+) {
+  if (length(x) != 1L || is.na(x) || !is.finite(x)) {
+    return("-")
+  }
+  
+  if (x != 0 && abs(x) < threshold) {
+    return(formatC(x, format = "e", digits = scientific_digits))
+  }
+  
+  formatC(x, format = "f", digits = digits)
+}
+
+# Round ordinary values as before, but retain the original precision of tiny
+# values so that the common E-notation rule can format them without rounding up
+# to the threshold or accidentally displaying them as zero.
 round_numeric <- function(x, digits = 4) {
   
   if (!is.numeric(x)) {
@@ -252,11 +276,39 @@ round_numeric <- function(x, digits = 4) {
   
   out <- round(x, digits)
   
-  small_nonzero <- !is.na(x) & x != 0 & abs(x) < 10^(-digits)
+  small_nonzero <- !is.na(x) & is.finite(x) & x != 0 &
+    abs(x) < SMALL_NUMBER_THRESHOLD
   
-  out[small_nonzero] <- signif(x[small_nonzero], digits)
+  out[small_nonzero] <- x[small_nonzero]
   
   out
+}
+
+# Apply the shared E-notation rule to numeric columns in table exports. P-value
+# columns have already been converted to the agreed <0.01/four-significant-digit
+# display convention before this helper is called.
+format_small_numbers_in_columns <- function(
+    x, threshold = SMALL_NUMBER_THRESHOLD,
+    scientific_digits = SMALL_NUMBER_E_DIGITS
+) {
+  for (nm in names(x)) {
+    values <- x[[nm]]
+    if (!is.numeric(values)) next
+    
+    small <- !is.na(values) & is.finite(values) & values != 0 &
+      abs(values) < threshold
+    if (!any(small)) next
+    
+    display_values <- as.character(values)
+    display_values[is.na(values)] <- NA_character_
+    display_values[small] <- vapply(
+      values[small],
+      function(value) formatC(value, format = "e", digits = scientific_digits),
+      character(1)
+    )
+    x[[nm]] <- display_values
+  }
+  x
 }
 
 
@@ -347,6 +399,10 @@ write_table <- function(
       x[[nm]] <- formatted_p
     }
   }
+  
+  # Standardise genuinely tiny non-p-value numbers across every table export.
+  # The transformation is display-only; upstream model/data objects are untouched.
+  x <- format_small_numbers_in_columns(x)
   
   destination_tsv <- if (appendix) {
     appendix_table_dir
@@ -692,7 +748,7 @@ preliminary_test_base <- preliminary_tests %>%
     Asset = ifelse(grepl("^Bitcoin", Series), "Bitcoin", "J303"),
     Statistic = as.numeric(Statistic),
     Statistic_P = paste0(
-      formatC(as.numeric(Statistic), format = "f", digits = 4),
+      vapply(as.numeric(Statistic), format_numeric_display, character(1)),
       " (",
       P_Value,
       ")"
@@ -1278,14 +1334,11 @@ format_table41_coefficient <- function(estimate, p_value, latex = FALSE) {
   }
   
   p_text <- format_table41_p(p_value, latex = latex)
-  paste0(formatC(estimate, format = "f", digits = 4), " (", p_text, ")")
+  paste0(format_numeric_display(estimate), " (", p_text, ")")
 }
 
 format_table41_number <- function(x, digits = 4) {
-  if (is.na(x) || !is.finite(x)) {
-    return("-")
-  }
-  formatC(x, format = "f", digits = digits)
+  format_numeric_display(x, digits = digits)
 }
 
 build_table41_display <- function(latex = FALSE) {
@@ -1332,7 +1385,7 @@ build_table41_display <- function(latex = FALSE) {
           return("-")
         }
         p_text <- format_table41_p(p_value, latex = latex)
-        paste0(formatC(f_statistic, format = "f", digits = 4), " (", p_text, ")")
+        paste0(format_numeric_display(f_statistic), " (", p_text, ")")
       },
       ordered_rows$Joint_F_Statistic,
       ordered_rows$Joint_Wald_P_Value,
@@ -3197,18 +3250,7 @@ write_table(
 # the original five-column grouped layout while keeping all estimates linked
 # to the upstream interaction-model results. The generic T29 export is unchanged.
 format_table53_estimate <- function(x, latex = FALSE) {
-  if (is.na(x) || !is.finite(x)) {
-    return("-")
-  }
-  
-  # Use E notation for very small estimates in both CSV and LaTeX-facing output.
-  # Keep this display-only change local to Table 5.3; the underlying estimates,
-  # standard errors, p-values, and all output table names remain unchanged.
-  if (x != 0 && abs(x) < 1e-4) {
-    return(formatC(x, format = "e", digits = 3))
-  }
-  
-  formatC(x, format = "f", digits = 4)
+  format_numeric_display(x)
 }
 
 build_table53_display <- function(latex = FALSE) {
@@ -3253,9 +3295,7 @@ build_table53_display <- function(latex = FALSE) {
     ),
     `Newey-West SE` = vapply(
       display_base$Robust_SE,
-      function(x) {
-        if (is.na(x) || !is.finite(x)) "-" else formatC(x, format = "f", digits = 4)
-      },
+      function(x) format_numeric_display(x),
       character(1)
     ),
     `p-value` = vapply(
@@ -3395,11 +3435,18 @@ write.csv(
 )
 
 format_scaled_ci <- function(lower, upper) {
-  ifelse(
-    is.na(lower) | is.na(upper),
-    NA_character_,
-    sprintf("[%.3f, %.3f]", lower, upper)
-  )
+  vapply(seq_along(lower), function(i) {
+    if (is.na(lower[[i]]) || is.na(upper[[i]])) {
+      return(NA_character_)
+    }
+    paste0(
+      "[",
+      format_numeric_display(lower[[i]], digits = 3),
+      ", ",
+      format_numeric_display(upper[[i]], digits = 3),
+      "]"
+    )
+  }, character(1))
 }
 
 t34_regression_display <- t34_regression_full %>%
@@ -4983,6 +5030,11 @@ cat(
   ),
   "\n"
 )
+
+
+
+
+
 
 
 
